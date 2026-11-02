@@ -25,14 +25,23 @@ effects. Each one is a Live Set you can open and take apart.
 **First Stage** · 2A03
 
 <!-- Video: assets/song-first-stage.mp4 -->
+https://github.com/user-attachments/assets/5aacf226-0408-4ebf-962d-d916045cf06a
+
 
 **Crystal Cavern** · 2A03, VRC6, MMC5 and S5B
 
 <!-- Video: assets/song-crystal-cavern.mp4 -->
+https://github.com/user-attachments/assets/be8edfa6-0745-41c7-99e3-f08dfc8d4ed5
+
+
 
 **Neon Causeway** · all eight chips
 
 <!-- Video: assets/song-neon-causeway.mp4 -->
+
+https://github.com/user-attachments/assets/c4dd48b8-b87b-494d-a13b-4bb829bd4217
+
+
 
 ## Features
 
