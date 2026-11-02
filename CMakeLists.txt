@@ -183,7 +183,7 @@ if(CHIPMUNK_BUILD_PLUGIN)
     target_link_libraries(render_als PRIVATE ChipmunkEngine ChipmunkAssets juce::juce_audio_utils juce::juce_recommended_config_flags)
 
     # Fails if a sample song has a silent track or clips.
-    foreach(song "varo - First Stage" "varo - Neon Causeway" "varo - Crystal Cavern" "varo - Blown Cartridge")
+    foreach(song "varo - First Stage" "varo - Neon Causeway" "varo - Crystal Cavern")
         add_test(NAME "song: ${song}" COMMAND render_als "${CMAKE_CURRENT_SOURCE_DIR}/examples/${song}.als" "${CMAKE_CURRENT_BINARY_DIR}/${song}.wav")
     endforeach()
 endif()

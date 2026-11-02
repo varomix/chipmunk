@@ -267,7 +267,7 @@ void testEnvelopeGestures()
         constexpr auto shift = juce::ModifierKeys::shiftModifier;
         const auto rowHeight = (h - top) / 16.0f;
         const auto pixelsPerValue = juce::jlimit(12.0f, 32.0f, rowHeight * 4.0f);
-        const auto shiftEvent = [&](juce::Point<float> p, int modifiers = shift) { return mouseEvent(graph, p, p, 1, modifiers); };
+        const auto shiftEvent = [&](juce::Point<float> p, int modifiers = juce::ModifierKeys::shiftModifier) { return mouseEvent(graph, p, p, 1, modifiers); };
 
         document.edit([](Instrument& inst) { inst.envelopes[envelopeVolume] = {}; });
         document.edit([](Instrument& inst) {
@@ -2074,7 +2074,7 @@ void testNewChips()
         {
             constexpr auto shift = juce::ModifierKeys::shiftModifier;
             const auto wave = [&](int step) { return (int) processor.getDocument().snapshot().wave[(size_t) step]; };
-            const auto event = [&](juce::Point<float> p, int modifiers = shift) { return mouseEvent(graph, p, p, 1, modifiers); };
+            const auto event = [&](juce::Point<float> p, int modifiers = juce::ModifierKeys::shiftModifier) { return mouseEvent(graph, p, p, 1, modifiers); };
             const auto columnX = [&](int step) { return ((float) step + 0.5f) * (float) graph.getWidth() / 64.0f; };
             const auto y = (float) graph.getHeight() * 0.9f;
             const auto pixelsPerValue = juce::jlimit(12.0f, 32.0f, (float) graph.getHeight() / 63.0f * 4.0f);
