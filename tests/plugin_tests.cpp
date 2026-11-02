@@ -2545,6 +2545,117 @@ void testResizing()
     }
 }
 
+void testComputerKeyboard()
+{
+    std::puts("computer keyboard and key highlights");
+
+    TempFolder temp;
+    ChipmunkProcessor processor(temp.presets);
+    processor.prepareToPlay(48000.0, 512);
+    auto& state = processor.getKeyboardState();
+
+    std::set<int> down;
+    ComputerKeyboard keys(state, [&](int keyCode) { return down.count(keyCode) > 0; });
+    const auto press = [&](int keyCode) { down.insert(keyCode); keys.update(); };
+    const auto lift = [&](int keyCode) { down.erase(keyCode); keys.update(); };
+
+    press('a');
+    check(state.isNoteOn(1, 60), "A plays C");
+    check(rms(render(processor, 12000), 2400) > 0.01, "and it sounds");
+    press('w');
+    press(';');
+    check(state.isNoteOn(1, 61) && state.isNoteOn(1, 76), "the other keys follow the piano, up to the semicolon");
+    lift('a');
+    lift('w');
+    lift(';');
+    check(! state.isNoteOn(1, 60) && ! state.isNoteOn(1, 61) && ! state.isNoteOn(1, 76), "lifting a key stops its note");
+
+    press('a');
+    press('x');
+    lift('x');
+    check(keys.getBaseNote() == 72 && state.isNoteOn(1, 60), "X moves up an octave, leaving the held note alone");
+    lift('a');
+    check(! state.isNoteOn(1, 60), "and that note still stops when its key lifts");
+    press('a');
+    check(state.isNoteOn(1, 72), "new notes use the new octave");
+    lift('a');
+
+    for (int i = 0; i < 12; ++i)
+    {
+        press('x');
+        lift('x');
+    }
+
+    check(keys.getBaseNote() == 96, "octaves stop at the top of the keyboard");
+
+    for (int i = 0; i < 12; ++i)
+    {
+        press('z');
+        lift('z');
+    }
+
+    check(keys.getBaseNote() == 24, "and at the bottom");
+    check(keys.labelForNote(24) == "A" && keys.labelForNote(25) == "W" && keys.labelForNote(23).isEmpty() && keys.labelForNote(41).isEmpty(), "each note knows its key");
+
+    press('s');
+    down.clear();
+    keys.releaseLifted();
+    check(! state.isNoteOn(1, 26), "a key lifted while something else had focus still stops its note");
+    down.insert('s');
+    keys.releaseLifted();
+    check(! state.isNoteOn(1, 26), "but a key can't start a note without the focus");
+    keys.update();
+    check(state.isNoteOn(1, 26), "until it has it");
+    keys.releaseAll();
+    check(! state.isNoteOn(1, 26), "everything can be stopped at once");
+
+    check(keys.usesKey(juce::KeyPress('a')) && keys.usesKey(juce::KeyPress('Z')) && keys.usesKey(juce::KeyPress(';')), "the keys are recognised");
+    check(! keys.usesKey(juce::KeyPress('q')) && ! keys.usesKey(juce::KeyPress('z', juce::ModifierKeys::commandModifier, 0)), "other keys and shortcuts are left alone");
+
+    ChipmunkEditor editor(processor);
+    check(! editor.keyPressed(juce::KeyPress('a')) && ! editor.keyStateChanged(true), "a plugin leaves the letter keys to its host");
+    editor.setComputerKeyboardEnabled(true);
+    check(editor.keyPressed(juce::KeyPress('a')) && editor.keyStateChanged(true), "the standalone app takes them");
+    check(! editor.keyPressed(juce::KeyPress('q')), "but not keys it doesn't use");
+    editor.setComputerKeyboardEnabled(false);
+
+    // MIDI from the host lights the keys, including notes too short to catch between frames.
+    auto& keyboard = editor.getKeyboard();
+    editor.refreshFromProcessor();
+    check(keyboard.getExternalNotes().none(), "nothing shows before any MIDI");
+    render(processor, 512, noteAt(0, true, 64));
+    editor.refreshFromProcessor();
+    check(keyboard.getExternalNotes()[64] && keyboard.getExternalNotes().count() == 1, "a MIDI note lights its key");
+    editor.refreshFromProcessor();
+    check(keyboard.getExternalNotes()[64], "for as long as it's held");
+    render(processor, 512, noteAt(0, false, 64));
+    editor.refreshFromProcessor();
+    check(keyboard.getExternalNotes().none(), "and goes out when it ends");
+
+    {
+        auto midi = noteAt(0, true, 72);
+        midi.addEvents(noteAt(100, false, 72), 0, -1, 0);
+        render(processor, 512, midi);
+    }
+
+    editor.refreshFromProcessor();
+    check(keyboard.getExternalNotes()[72], "a very short note still flashes");
+    editor.refreshFromProcessor();
+    check(keyboard.getExternalNotes().none(), "for one frame");
+
+    {
+        juce::MidiBuffer midi;
+        midi.addEvent(juce::MidiMessage::noteOn(1, 60, (juce::uint8) 100), 0);
+        midi.addEvent(juce::MidiMessage::noteOn(1, 127, (juce::uint8) 100), 1);
+        midi.addEvent(juce::MidiMessage::allNotesOff(1), 2);
+        render(processor, 512, midi);
+    }
+
+    editor.refreshFromProcessor();
+    editor.refreshFromProcessor();
+    check(keyboard.getExternalNotes().none(), "all notes off clears them, top note included");
+}
+
 void writeScreenshots(const juce::File& folder)
 {
     TempFolder temp;
@@ -2679,6 +2790,21 @@ void writeScreenshots(const juce::File& folder)
     editor.setSize(1000, 640);
     editor.refreshFromProcessor();
     shoot("22_narrow_header");
+
+    // Notes from every source lit at once, with the letters the standalone app shows.
+    editor.setSize(1180, 800);
+    editor.setComputerKeyboardEnabled(true);
+    processor.getKeyboardState().noteOn(1, 60, 0.9f);
+    processor.getKeyboardState().noteOn(1, 66, 0.9f);
+    {
+        juce::MidiBuffer chord;
+        for (const auto note : { 72, 75, 79 })
+            chord.addEvent(juce::MidiMessage::noteOn(1, note, (juce::uint8) 100), 0);
+        render(processor, 512, chord);
+    }
+    editor.refreshFromProcessor();
+    shoot("23_keys_down");
+    editor.setComputerKeyboardEnabled(false);
 }
 } // namespace
 
@@ -2704,6 +2830,7 @@ int main(int argc, char** argv)
     testDrumKit();
     testNewChips();
     testResizing();
+    testComputerKeyboard();
 
     if (argc > 1)
         writeScreenshots(juce::File(argv[1]));

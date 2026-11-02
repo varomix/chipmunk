@@ -24,6 +24,8 @@ Your DAW handles composing, arranging and mixing. Chipmunk handles sound design 
 - **Optional polyphony:** play up to 8 voices on one track, with each note on its own chip.
 - **Drum Kit channel:** map samples and noise sounds to keys.
 - **Sound browser:** 61 factory sounds, search and favorites, plus import of `.fms` and `.fti` files.
+- **Play from your computer keyboard:** in the standalone app, the letter keys play notes and Z and X
+  change the octave. Notes from any source light up the on-screen keyboard.
 - **MIDI control:** draw FamiStudio's note effects, like slides, fine pitch and vibrato, as clip
   envelopes.
 

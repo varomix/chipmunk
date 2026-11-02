@@ -252,6 +252,9 @@ void ChipmunkProcessor::prepareToPlay(double sampleRate, int)
 {
     const auto pal = machineParam->load() > 0.5f;
 
+    for (auto& word : midiHeldNotes)
+        word.store(0, std::memory_order_relaxed);
+
     engine.prepare(sampleRate, pal, NesEngine::chipsNeededFor(selectedChannelType()), (int) n163ChannelsParam->load(), (int) voicesParam->load());
     enginePal.store(pal, std::memory_order_relaxed);
     preparedSampleRate = sampleRate;
@@ -319,14 +322,46 @@ void ChipmunkProcessor::applyParameters()
     gain.setTargetValue(juce::Decibels::decibelsToGain(gainParam->load() + channelTrimDb(getChannelIndex())));
 }
 
+std::bitset<128> ChipmunkProcessor::takeMidiNotes()
+{
+    std::bitset<128> notes;
+
+    for (size_t word = 0; word < midiHeldNotes.size(); ++word)
+    {
+        const auto bits = midiHeldNotes[word].load(std::memory_order_relaxed) | midiStruckNotes[word].exchange(0, std::memory_order_relaxed);
+
+        for (int bit = 0; bit < 64; ++bit)
+            if ((bits >> bit) & 1)
+                notes.set(word * 64 + (size_t) bit);
+    }
+
+    return notes;
+}
+
 void ChipmunkProcessor::handleMidi(const juce::MidiMessage& message)
 {
+    const auto noteNumber = message.getNoteNumber() & 127;
+    const auto noteWord = (size_t) (noteNumber >> 6);
+    const auto noteBit = (uint64_t) 1 << (noteNumber & 63);
+
     if (message.isNoteOn())
+    {
+        midiHeldNotes[noteWord].fetch_or(noteBit, std::memory_order_relaxed);
+        midiStruckNotes[noteWord].fetch_or(noteBit, std::memory_order_relaxed);
         engine.noteOn(message.getNoteNumber(), message.getVelocity());
+    }
     else if (message.isNoteOff())
+    {
+        midiHeldNotes[noteWord].fetch_and(~noteBit, std::memory_order_relaxed);
         engine.noteOff(message.getNoteNumber());
+    }
     else if (message.isAllNotesOff() || message.isAllSoundOff())
+    {
+        for (auto& word : midiHeldNotes)
+            word.store(0, std::memory_order_relaxed);
+
         engine.allNotesOff();
+    }
     else if (message.isPitchWheel())
         engine.setPitchBend((message.getPitchWheelValue() - 8192) / 8192.0);
     else if (message.isController())

@@ -8,6 +8,7 @@
 #include "plugin/PresetLibrary.h"
 #include "plugin/ScopeBuffer.h"
 
+#include <bitset>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -51,6 +52,10 @@ public:
     const ScopeBuffer& getScope() const { return scope; }
     int getSoundingNote() const { return soundingNote.load(std::memory_order_relaxed); }
     int getSoundingVolume() const { return soundingVolume.load(std::memory_order_relaxed); }
+
+    // The notes arriving as MIDI, to show on the keyboard: those held now, plus any that began
+    // since the last call, so that even the shortest note gets seen.
+    std::bitset<128> takeMidiNotes();
 
     // Rebuilds the chip if the NTSC/PAL setting has changed. Call from the message thread.
     // Rebuilding allocates, so the audio thread only asks for this to happen.
@@ -120,6 +125,8 @@ private:
     ScopeBuffer scope;
     std::atomic<int> soundingNote { -1 };
     std::atomic<int> soundingVolume { 0 };
+    std::array<std::atomic<uint64_t>, 2> midiHeldNotes {};
+    std::array<std::atomic<uint64_t>, 2> midiStruckNotes {};
     std::atomic<bool> enginePal { false };
     double preparedSampleRate = 0.0;
     int auditionNote = -1;

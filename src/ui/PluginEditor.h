@@ -2,6 +2,7 @@
 
 #include "plugin/PluginProcessor.h"
 #include "ui/ActivityDisplay.h"
+#include "ui/ComputerKeyboard.h"
 #include "ui/DpcmEditor.h"
 #include "ui/EnvelopeEditor.h"
 #include "ui/PresetBrowser.h"
@@ -43,12 +44,23 @@ private:
 };
 
 // Dark keys, so the keyboard belongs to the rest of the panel.
-class ChipKeyboard final : public juce::MidiKeyboardComponent
+class ChipKeyboard final : public juce::MidiKeyboardComponent,
+                           public juce::SettableTooltipClient
 {
 public:
     using juce::MidiKeyboardComponent::MidiKeyboardComponent;
 
+    // Notes from elsewhere to show as pressed, along with those played on these keys.
+    void setExternalNotes(const std::bitset<128>&);
+    const std::bitset<128>& getExternalNotes() const { return externalNotes; }
+
+    // What to print on each key, like the letter that plays it.
+    void setKeyLabels(std::function<juce::String(int note)>);
+
 private:
+    std::bitset<128> externalNotes;
+    std::function<juce::String(int)> keyLabels;
+
     void drawWhiteNote(int note, juce::Graphics&, juce::Rectangle<float> area, bool isDown, bool isOver, juce::Colour lineColour, juce::Colour textColour) override;
     void drawBlackNote(int note, juce::Graphics&, juce::Rectangle<float> area, bool isDown, bool isOver, juce::Colour noteFillColour) override;
 };
@@ -66,6 +78,7 @@ public:
     void paint(juce::Graphics&) override;
     void resized() override;
     bool keyPressed(const juce::KeyPress&) override;
+    bool keyStateChanged(bool isKeyDown) override;
 
     bool isInterestedInFileDrag(const juce::StringArray& files) override;
     void filesDropped(const juce::StringArray& files, int x, int y) override;
@@ -87,6 +100,10 @@ public:
     void commitPatchField();
     DpcmEditor& getDpcmEditor() { return dpcmEditor; }
     KitDivider& getKitDivider() { return kitDivider; }
+    ChipKeyboard& getKeyboard() { return keyboard; }
+
+    // On in the standalone app, where nothing else wants the letter keys.
+    void setComputerKeyboardEnabled(bool);
 
 private:
     void timerCallback() override { refreshFromProcessor(); }
@@ -101,6 +118,7 @@ private:
     void refreshChipControls();
     void updateKitPanels();
     void updateVoiceControls();
+    void pollComputerKeyboard();
     int kitPanelsMinHeight() const;
     void editChipSettings(const std::function<void(Instrument&)>& change);
 
@@ -144,6 +162,9 @@ private:
     std::unique_ptr<ButtonAttachment> velocityAttachment, legatoAttachment, gridAttachment;
 
     ChipKeyboard keyboard;
+    ComputerKeyboard computerKeyboard;
+    bool computerKeyboardEnabled = false;
+    int shownBaseNote = -1;
     ActivityDisplay activity;
 
     int lastVersion = -1;

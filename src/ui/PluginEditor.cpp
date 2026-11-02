@@ -101,8 +101,29 @@ void PresetDisplay::paint(juce::Graphics& g)
     }
 }
 
+void ChipKeyboard::setExternalNotes(const std::bitset<128>& notes)
+{
+    if (notes == externalNotes)
+        return;
+
+    const auto changed = notes ^ externalNotes;
+    externalNotes = notes;
+
+    for (int note = gridKeyLow; note <= gridKeyHigh; ++note)
+        if (changed[(size_t) note])
+            repaint(getRectangleForKey(note).getSmallestIntegerContainer());
+}
+
+void ChipKeyboard::setKeyLabels(std::function<juce::String(int)> labels)
+{
+    keyLabels = std::move(labels);
+    repaint();
+}
+
 void ChipKeyboard::drawWhiteNote(int note, juce::Graphics& g, juce::Rectangle<float> area, bool isDown, bool isOver, juce::Colour, juce::Colour)
 {
+    isDown = isDown || externalNotes[(size_t) note];
+
     const auto top = isDown ? theme::accent : juce::Colour(0xff4d4b5b);
     const auto bottom = isDown ? theme::accent.darker(0.4f) : juce::Colour(0xff35333f);
 
@@ -129,19 +150,35 @@ void ChipKeyboard::drawWhiteNote(int note, juce::Graphics& g, juce::Rectangle<fl
         g.setFont(juce::FontOptions(9.5f));
         g.drawText(text, area.withTrimmedBottom(3.0f), juce::Justification::centredBottom, false);
     }
+
+    if (keyLabels != nullptr)
+    {
+        g.setColour(isDown ? theme::edge : theme::cream);
+        g.setFont(theme::labelFont(9.5f));
+        g.drawText(keyLabels(note), area.withTrimmedBottom(16.0f), juce::Justification::centredBottom, false);
+    }
 }
 
-void ChipKeyboard::drawBlackNote(int, juce::Graphics& g, juce::Rectangle<float> area, bool isDown, bool isOver, juce::Colour)
+void ChipKeyboard::drawBlackNote(int note, juce::Graphics& g, juce::Rectangle<float> area, bool isDown, bool isOver, juce::Colour)
 {
+    isDown = isDown || externalNotes[(size_t) note];
+
     const auto key = area.withTrimmedLeft(1.0f).withTrimmedRight(1.0f);
 
-    g.setColour(isDown ? theme::accent.darker(0.2f) : isOver ? juce::Colour(0xff2c2838) : juce::Colour(0xff15141b));
+    g.setColour(isDown ? theme::accent : isOver ? juce::Colour(0xff2c2838) : juce::Colour(0xff15141b));
     g.fillRoundedRectangle(key.withTrimmedTop(-3.0f), 2.0f);
 
     if (! isDown)
     {
         g.setColour(juce::Colours::white.withAlpha(0.12f));
         g.fillRect(key.getX() + 2.0f, key.getBottom() - 5.0f, key.getWidth() - 4.0f, 2.0f);
+    }
+
+    if (keyLabels != nullptr)
+    {
+        g.setColour(isDown ? theme::edge : theme::cream);
+        g.setFont(theme::labelFont(8.5f));
+        g.drawText(keyLabels(note), key.withTrimmedBottom(7.0f), juce::Justification::centredBottom, false);
     }
 }
 
@@ -152,6 +189,7 @@ ChipmunkEditor::ChipmunkEditor(ChipmunkProcessor& p)
       dpcmEditor(p),
       wavePanel(p.getDocument()),
       keyboard(p.getKeyboardState(), juce::MidiKeyboardComponent::horizontalKeyboard),
+      computerKeyboard(p.getKeyboardState()),
       activity(p)
 {
     setLookAndFeel(&lookAndFeel);
@@ -377,6 +415,8 @@ ChipmunkEditor::ChipmunkEditor(ChipmunkProcessor& p)
     setResizeLimits(1000, 640, 1800, 1300);
     setSize(1180, 800);
 
+    setComputerKeyboardEnabled(p.wrapperType == juce::AudioProcessor::wrapperType_Standalone);
+
     refreshFromProcessor();
     startTimerHz(30);
 }
@@ -394,6 +434,7 @@ void ChipmunkEditor::setupKnob(juce::Slider& slider, bool valueBelow, int valueW
 ChipmunkEditor::~ChipmunkEditor()
 {
     stopTimer();
+    computerKeyboard.releaseAll();
     setLookAndFeel(nullptr);
 }
 
@@ -437,7 +478,42 @@ void ChipmunkEditor::refreshFromProcessor()
     for (int type = 0; type < numEnvelopeTypes; ++type)
         panels[(size_t) type]->setPlayhead(processor.getEnvelopePosition(type));
 
+    keyboard.setExternalNotes(processor.takeMidiNotes());
+
+    if (computerKeyboardEnabled)
+        pollComputerKeyboard();
+
     activity.refresh();
+}
+
+void ChipmunkEditor::setComputerKeyboardEnabled(bool shouldBeEnabled)
+{
+    computerKeyboardEnabled = shouldBeEnabled;
+
+    if (! shouldBeEnabled)
+        computerKeyboard.releaseAll();
+
+    keyboard.setTooltip(shouldBeEnabled ? "Play with the letter keys. Z and X change the octave" : "");
+    keyboard.setKeyLabels(shouldBeEnabled ? std::function<juce::String(int)>([this](int note) { return computerKeyboard.labelForNote(note); }) : nullptr);
+}
+
+void ChipmunkEditor::pollComputerKeyboard()
+{
+    // Another app gets the key-up, so a note held while switching away would never end.
+    if (! juce::Process::isForegroundProcess())
+    {
+        computerKeyboard.releaseAll();
+        return;
+    }
+
+    computerKeyboard.releaseLifted();
+
+    // Keys only reach a component with the focus or a parent of it. Nothing has it in a new window,
+    // and clicking the title bar gives it to the window itself, which is outside this editor.
+    const auto* focused = juce::Component::getCurrentlyFocusedComponent();
+
+    if (isShowing() && (focused == nullptr || focused->isParentOf(this)))
+        grabKeyboardFocus();
 }
 
 void ChipmunkEditor::updateForChannel(int channel)
@@ -932,7 +1008,24 @@ bool ChipmunkEditor::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
-    return false;
+    // Claimed so the system doesn't beep. The notes themselves follow keyStateChanged.
+    return computerKeyboardEnabled && computerKeyboard.usesKey(key);
+}
+
+bool ChipmunkEditor::keyStateChanged(bool)
+{
+    if (! computerKeyboardEnabled)
+        return false;
+
+    computerKeyboard.update();
+
+    if (computerKeyboard.getBaseNote() != shownBaseNote)
+    {
+        shownBaseNote = computerKeyboard.getBaseNote();
+        keyboard.repaint();
+    }
+
+    return true;
 }
 
 bool ChipmunkEditor::isInterestedInFileDrag(const juce::StringArray& files)

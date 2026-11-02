@@ -99,6 +99,8 @@ if(CHIPMUNK_BUILD_PLUGIN)
         IS_SYNTH TRUE
         NEEDS_MIDI_INPUT TRUE
         NEEDS_MIDI_OUTPUT FALSE
+        BLUETOOTH_PERMISSION_ENABLED TRUE
+        BLUETOOTH_PERMISSION_TEXT "Chipmunk uses Bluetooth to connect to wireless MIDI keyboards."
         COPY_PLUGIN_AFTER_BUILD TRUE)
 
     juce_add_binary_data(ChipmunkAssets SOURCES assets/logo.png)
@@ -107,6 +109,7 @@ if(CHIPMUNK_BUILD_PLUGIN)
         src/plugin/PluginProcessor.cpp
         src/plugin/PresetLibrary.cpp
         src/ui/ActivityDisplay.cpp
+        src/ui/ComputerKeyboard.cpp
         src/ui/DpcmEditor.cpp
         src/ui/EnvelopeEditor.cpp
         src/ui/PluginEditor.cpp
