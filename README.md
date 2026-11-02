@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="The Chipmunk logo: a pixel art chipmunk in headphones playing a keyboard" width="256">
+</p>
+
 # Chipmunk
 
 Chipmunk is a chiptune instrument for your DAW. It's built on
@@ -5,6 +9,8 @@ Chipmunk is a chiptune instrument for your DAW. It's built on
 MMC5, FDS, N163, S5B and EPSM.
 
 Your DAW handles composing, arranging and mixing. Chipmunk handles sound design and chip playback.
+
+![The Chipmunk window, with the sound browser on the left and the volume, arpeggio, pitch and duty envelopes on the right](assets/screenshot.png)
 
 > **Early days:** Chipmunk has only been built for Apple Silicon Macs. There are no prebuilt downloads
 > yet, so you need to build it yourself.
