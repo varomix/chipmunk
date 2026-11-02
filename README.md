@@ -63,7 +63,7 @@ within a rounding error.
 ## Build
 
 You need CMake 3.22 or later, a C++20 compiler and an internet connection for the first build, which
-downloads JUCE. On macOS 11 or later that means the Xcode Command Line Tools, and on Windows, Visual
+downloads JUCE. The source download on each release already includes JUCE, so it builds offline. On macOS 11 or later that means the Xcode Command Line Tools, and on Windows, Visual
 Studio. On Linux, install the packages listed in [the CI workflow](.github/workflows/build.yml).
 
 ```bash

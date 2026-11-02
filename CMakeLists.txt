@@ -103,6 +103,12 @@ target_link_libraries(dump_factory_presets PRIVATE ChipmunkEngine)
 
 if(CHIPMUNK_BUILD_PLUGIN)
     include(FetchContent)
+
+    # A release's source download comes with JUCE in third_party/JUCE, so it builds offline.
+    if(NOT DEFINED FETCHCONTENT_SOURCE_DIR_JUCE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/JUCE/CMakeLists.txt")
+        set(FETCHCONTENT_SOURCE_DIR_JUCE "${CMAKE_CURRENT_SOURCE_DIR}/third_party/JUCE")
+    endif()
+
     FetchContent_Declare(JUCE
         GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
         GIT_TAG 9.0.4
