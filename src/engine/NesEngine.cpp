@@ -446,7 +446,7 @@ void NesEngine::renderChunk(float* left, float* right, int count)
     samplePosition += count;
 
     const auto target = apu->clocks_for_samples(samplePosition);
-    const auto cycles = std::max(target - emulatedCycles, (int64_t) apu->chunk_time());
+    const auto cycles = std::max<int64_t>(target - emulatedCycles, apu->chunk_time());
 
     apu->end_chunk((long) cycles);
     emulatedCycles += cycles;
