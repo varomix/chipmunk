@@ -1,0 +1,139 @@
+# Builds and tests on every push. A tag like v0.1.0 also publishes a Release, with the
+# complete source next to the binaries, as the AGPL requires when conveying them.
+name: Build
+
+on:
+  push:
+    branches: [main, ci]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos
+            os: macos-latest
+            configure: '"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"'
+          - name: linux
+            os: ubuntu-22.04
+            test-prefix: xvfb-run -a
+          - name: windows
+            os: windows-latest
+            configure: -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libjack-jackd2-dev libcurl4-openssl-dev \
+            libfreetype6-dev libfontconfig1-dev libx11-dev libxcomposite-dev libxcursor-dev \
+            libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libgl1-mesa-dev \
+            zlib1g-dev xvfb
+
+      - name: Install zlib on Windows
+        if: runner.os == 'Windows'
+        run: C:/vcpkg/vcpkg.exe install zlib:x64-windows-static
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCHIPMUNK_INSTALL_PLUGINS=OFF ${{ matrix.configure }}
+
+      - name: Build
+        run: |
+          set -o pipefail
+          cmake --build build --config Release --parallel 4 2>&1 | tee build.log
+
+      - name: Test
+        run: |
+          set -o pipefail
+          ${{ matrix.test-prefix }} ctest --test-dir build -C Release --output-on-failure --timeout 900 2>&1 | tee test.log
+
+      # Failures become annotations, which can be read without opening the whole log.
+      - name: Summarize failures
+        if: failure()
+        run: |
+          {
+            grep -hE "error[ :]|error C[0-9]+|undefined reference|FAIL|Failed|\*\*\*" build.log test.log 2>/dev/null | cut -c1-300 | sort -u | head -40
+            tail -n 15 test.log 2>/dev/null | cut -c1-300
+          } | sed -e 's/%/%25/g' -e 's/\r//g' | awk 'BEGIN { printf "::error title=${{ matrix.name }}::" } { printf "%s%%0A", $0 } END { print "" }'
+
+      - name: Package
+        run: |
+          version=$(sed -n 's/^project(Chipmunk VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          stage="Chipmunk-$version-${{ matrix.name }}"
+          mkdir "$stage"
+
+          for format in VST3 AU Standalone; do
+            if [ -d "build/Chipmunk_artefacts/Release/$format" ]; then
+              cp -R "build/Chipmunk_artefacts/Release/$format" "$stage/"
+            fi
+          done
+
+          if [ "$RUNNER_OS" = macOS ]; then
+            find "$stage" -maxdepth 2 \( -name '*.vst3' -o -name '*.component' -o -name '*.app' \) -exec codesign --force --deep --sign - {} \;
+          fi
+
+          cp LICENSE THIRD_PARTY_NOTICES.md "$stage/"
+          cp "build/_deps/juce-src/JUCE.spdx.json" "$stage/"
+          cp packaging/README.txt "$stage/"
+          cmake -E tar cf "$stage.zip" --format=zip "$stage"
+          echo "STAGE=$stage" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.STAGE }}
+          path: ${{ env.STAGE }}.zip
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches the version
+        run: |
+          version=$(sed -n 's/^project(Chipmunk VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match version $version in CMakeLists.txt"
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # Everything needed to rebuild the binaries, including the exact JUCE they were built with.
+      - name: Bundle the complete source
+        run: |
+          juce_tag=$(sed -n 's/^ *GIT_TAG \(.*\)/\1/p' CMakeLists.txt)
+          source="Chipmunk-$GITHUB_REF_NAME-source"
+          git archive --prefix="$source/" HEAD | tar -x
+          git clone --depth 1 --branch "$juce_tag" https://github.com/juce-framework/JUCE.git "$source/third_party/JUCE"
+          rm -rf "$source/third_party/JUCE/.git"
+          tar -czf "dist/$source-with-juce.tar.gz" "$source"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes

@@ -8,8 +8,19 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Plugins and the app shouldn't need Microsoft's runtime installed to load.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 option(CHIPMUNK_BUILD_PLUGIN "Build the JUCE plugin (off for sanitizer test builds)" ON)
 option(CHIPMUNK_TSAN "Build with Thread Sanitizer" OFF)
+
+# Windows keeps plugins in Program Files, which a normal build can't write to.
+if(WIN32)
+    set(CHIPMUNK_INSTALL_DEFAULT OFF)
+else()
+    set(CHIPMUNK_INSTALL_DEFAULT ON)
+endif()
+option(CHIPMUNK_INSTALL_PLUGINS "Copy the plugins to the system's plugin folders after building" ${CHIPMUNK_INSTALL_DEFAULT})
 
 if(CHIPMUNK_TSAN)
     add_compile_options(-fsanitize=thread -g)
@@ -61,12 +72,17 @@ target_link_libraries(engine_tests PRIVATE ChipmunkEngine)
 target_compile_options(engine_tests PRIVATE -UNDEBUG)
 add_test(NAME engine_tests COMMAND engine_tests)
 
-find_package(ZLIB REQUIRED)
+# Only the golden tests need zlib, for reading their traces, and Windows doesn't come with it.
+find_package(ZLIB)
 
-add_executable(golden_tests tests/golden_tests.cpp)
-target_link_libraries(golden_tests PRIVATE ChipmunkEngine ZLIB::ZLIB)
-target_compile_definitions(golden_tests PRIVATE CHIPMUNK_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/golden")
-add_test(NAME golden_tests COMMAND golden_tests)
+if(ZLIB_FOUND)
+    add_executable(golden_tests tests/golden_tests.cpp)
+    target_link_libraries(golden_tests PRIVATE ChipmunkEngine ZLIB::ZLIB)
+    target_compile_definitions(golden_tests PRIVATE CHIPMUNK_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/golden")
+    add_test(NAME golden_tests COMMAND golden_tests)
+else()
+    message(WARNING "zlib wasn't found, so the golden tests won't be built")
+endif()
 
 add_executable(document_tests tests/document_tests.cpp)
 target_link_libraries(document_tests PRIVATE ChipmunkEngine)
@@ -101,7 +117,7 @@ if(CHIPMUNK_BUILD_PLUGIN)
         NEEDS_MIDI_OUTPUT FALSE
         BLUETOOTH_PERMISSION_ENABLED TRUE
         BLUETOOTH_PERMISSION_TEXT "Chipmunk uses Bluetooth to connect to wireless MIDI keyboards."
-        COPY_PLUGIN_AFTER_BUILD TRUE)
+        COPY_PLUGIN_AFTER_BUILD ${CHIPMUNK_INSTALL_PLUGINS})
 
     juce_add_binary_data(ChipmunkAssets SOURCES assets/logo.png)
 
@@ -120,6 +136,7 @@ if(CHIPMUNK_BUILD_PLUGIN)
     target_sources(Chipmunk PRIVATE ${CHIPMUNK_PLUGIN_SOURCES})
     target_include_directories(Chipmunk PRIVATE src)
     target_compile_definitions(Chipmunk PUBLIC
+        CHIPMUNK_VERSION="${PROJECT_VERSION}"
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
@@ -138,6 +155,7 @@ if(CHIPMUNK_BUILD_PLUGIN)
     target_sources(plugin_tests PRIVATE tests/plugin_tests.cpp ${CHIPMUNK_PLUGIN_SOURCES})
     target_include_directories(plugin_tests PRIVATE src)
     target_compile_definitions(plugin_tests PRIVATE
+        CHIPMUNK_VERSION="${PROJECT_VERSION}"
         JucePlugin_Name="Chipmunk"
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
@@ -152,6 +170,7 @@ if(CHIPMUNK_BUILD_PLUGIN)
     target_sources(render_als PRIVATE tools/render_als.cpp ${CHIPMUNK_PLUGIN_SOURCES})
     target_include_directories(render_als PRIVATE src)
     target_compile_definitions(render_als PRIVATE
+        CHIPMUNK_VERSION="${PROJECT_VERSION}"
         JucePlugin_Name="Chipmunk"
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0

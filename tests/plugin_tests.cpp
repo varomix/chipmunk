@@ -2656,6 +2656,37 @@ void testComputerKeyboard()
     check(keyboard.getExternalNotes().none(), "all notes off clears them, top note included");
 }
 
+void testLegalNotices()
+{
+    std::puts("legal notices");
+
+    TempFolder temp;
+    ChipmunkProcessor processor(temp.presets);
+    ChipmunkEditor editor(processor);
+    auto& about = editor.getAboutPanel();
+
+    const auto notice = AboutPanel::getNotice();
+    check(notice.contains("Copyright") && notice.contains("ABSOLUTELY NO WARRANTY") && notice.contains("GNU Affero General Public License"), "the notice has what the AGPL asks for");
+
+    for (const auto* part : { "JUCE", "FamiStudio", "Nes_Snd_Emu", "Nuked-OPN2", "emu2413", "emu2149" })
+        check(notice.contains(part), juce::String("it credits ") + part);
+
+    check(! about.isVisible() && editor.getAboutButton().isVisible(), "the panel starts closed, with a button to open it");
+    editor.getAboutButton().onClick();
+    check(about.isVisible() && about.getBounds() == editor.getLocalBounds(), "the button opens it over the whole window");
+
+    for (const auto [width, height] : std::vector<std::pair<int, int>> {{1000, 640}, {1800, 1300}})
+    {
+        editor.setSize(width, height);
+        auto fits = about.getBounds() == editor.getLocalBounds();
+        for (auto* child : about.getChildren())
+            fits = fits && about.getLocalBounds().contains(child->getBounds()) && child->getWidth() > 0;
+        check(fits, "it fits a " + juce::String(width) + " wide window");
+    }
+
+    check(editor.keyPressed(juce::KeyPress(juce::KeyPress::escapeKey)) && ! about.isVisible(), "Escape closes it");
+}
+
 void writeScreenshots(const juce::File& folder)
 {
     TempFolder temp;
@@ -2805,6 +2836,13 @@ void writeScreenshots(const juce::File& folder)
     editor.refreshFromProcessor();
     shoot("23_keys_down");
     editor.setComputerKeyboardEnabled(false);
+
+    editor.getAboutPanel().setVisible(true);
+    editor.getAboutPanel().toFront(false);
+    shoot("24_about");
+    editor.setSize(1000, 640);
+    shoot("25_about_smallest");
+    editor.getAboutPanel().setVisible(false);
 }
 } // namespace
 
@@ -2831,6 +2869,7 @@ int main(int argc, char** argv)
     testNewChips();
     testResizing();
     testComputerKeyboard();
+    testLegalNotices();
 
     if (argc > 1)
         writeScreenshots(juce::File(argv[1]));

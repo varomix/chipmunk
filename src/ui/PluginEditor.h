@@ -65,6 +65,30 @@ private:
     void drawBlackNote(int note, juce::Graphics&, juce::Rectangle<float> area, bool isDown, bool isOver, juce::Colour noteFillColour) override;
 };
 
+// Who made this, the license and where to get the source, which the AGPL asks every interactive
+// program to show. It covers the window until closed.
+class AboutPanel final : public juce::Component
+{
+public:
+    explicit AboutPanel(const juce::Image& logo);
+
+    void paint(juce::Graphics&) override;
+    void resized() override;
+    void mouseDown(const juce::MouseEvent&) override;
+
+    std::function<void()> onClose;
+
+    // The text of the notice, for tests.
+    static juce::String getNotice();
+
+private:
+    juce::Rectangle<int> cardArea() const;
+
+    const juce::Image& logo;
+    juce::HyperlinkButton sourceLink, licenseLink, noticesLink;
+    juce::TextButton closeButton { "Close" };
+};
+
 // One window with everything visible: the current sound and scope along the top, sounds on the
 // left, envelopes in the middle with playing controls above them, and a keyboard along the bottom.
 class ChipmunkEditor final : public juce::AudioProcessorEditor,
@@ -101,6 +125,8 @@ public:
     DpcmEditor& getDpcmEditor() { return dpcmEditor; }
     KitDivider& getKitDivider() { return kitDivider; }
     ChipKeyboard& getKeyboard() { return keyboard; }
+    AboutPanel& getAboutPanel() { return aboutPanel; }
+    juce::TextButton& getAboutButton() { return aboutButton; }
 
     // On in the standalone app, where nothing else wants the letter keys.
     void setComputerKeyboardEnabled(bool);
@@ -153,9 +179,10 @@ private:
     juce::Label fdsMasterLabel, fdsSpeedLabel, fdsDepthLabel, fdsDelayLabel, n163SizeLabel, n163PositionLabel, n163ChannelsLabel, vrc7PatchLabel, patchLabel;
     std::unique_ptr<SliderAttachment> n163ChannelsAttachment;
 
-    juce::TextButton undoButton { "Undo" }, redoButton { "Redo" }, previousButton { "<" }, nextButton { ">" };
+    juce::TextButton undoButton { "Undo" }, redoButton { "Redo" }, previousButton { "<" }, nextButton { ">" }, aboutButton { "?" };
     PresetDisplay presetDisplay;
     juce::Image logo;
+    AboutPanel aboutPanel { logo };
 
     std::unique_ptr<ComboAttachment> channelAttachment, dutyAttachment, machineAttachment, voicesAttachment;
     std::unique_ptr<SliderAttachment> outputAttachment, glideAttachment, bendAttachment, vibratoAttachment;

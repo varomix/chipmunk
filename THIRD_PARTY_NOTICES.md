@@ -9,7 +9,11 @@ Chipmunk is built on the work below. Each part stays under its own license.
 | Nuked-OPN2 (`ym3438`) | `third_party/NesSndEmu/nes_apu` | Alexey Khokholov (Nuke.YKT) | LGPL 2.1 or later |
 | emu2413 | `third_party/NesSndEmu/nes_apu` | Mitsutaka Okazaki | MIT, below |
 | emu2149 | `third_party/NesSndEmu/nes_apu` | Mitsutaka Okazaki | MIT, below |
-| JUCE | Downloaded when building | Raw Material Software | AGPLv3 or the commercial JUCE license |
+| JUCE | Downloaded when building | Raw Material Software | Used here under the AGPLv3 |
+| VST3 SDK, inside JUCE | Downloaded when building | Steinberg Media Technologies | MIT |
+
+JUCE contains other third-party software, which `JUCE.spdx.json` lists, inside JUCE's source and each
+binary download. VST is a registered trademark of Steinberg Media Technologies GmbH.
 
 Changes to the emulator are listed in `third_party/NesSndEmu/PATCHES.md`. Example songs by other
 composers are covered in `examples/README.md`.

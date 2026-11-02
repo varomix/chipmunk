@@ -61,6 +61,95 @@ void KitDivider::mouseDoubleClick(const juce::MouseEvent&)
         onReset();
 }
 
+AboutPanel::AboutPanel(const juce::Image& l)
+    : logo(l),
+      sourceLink("Source code", juce::URL("https://github.com/varomix/chipmunk")),
+      licenseLink("The license", juce::URL("https://github.com/varomix/chipmunk/blob/main/LICENSE")),
+      noticesLink("Third-party notices", juce::URL("https://github.com/varomix/chipmunk/blob/main/THIRD_PARTY_NOTICES.md"))
+{
+    for (auto* link : { &sourceLink, &licenseLink, &noticesLink })
+    {
+        addAndMakeVisible(*link);
+        link->setFont(juce::FontOptions(12.5f), false);
+        link->setColour(juce::HyperlinkButton::textColourId, theme::accent);
+    }
+
+    addAndMakeVisible(closeButton);
+    closeButton.onClick = [this] {
+        if (onClose)
+            onClose();
+    };
+}
+
+juce::String AboutPanel::getNotice()
+{
+    return juce::String("Copyright (C) 2026 varomix\n\n")
+         + "Chipmunk is free software: you can redistribute it and change it under the terms of the GNU Affero General "
+           "Public License, version 3. It comes with ABSOLUTELY NO WARRANTY, to the extent permitted by law. The links "
+           "below have the license and the complete source code.\n\n"
+           "Built with JUCE (AGPLv3), FamiStudio by BleuBleu (MIT), Nes_Snd_Emu by Shay Green and BleuBleu (LGPL 2.1), "
+           "Nuked-OPN2 by Alexey Khokholov (LGPL 2.1) and emu2413 and emu2149 by Mitsutaka Okazaki (MIT).";
+}
+
+juce::Rectangle<int> AboutPanel::cardArea() const
+{
+    return getLocalBounds().withSizeKeepingCentre(juce::jmin(520, getWidth() - 40), juce::jmin(370, getHeight() - 40));
+}
+
+void AboutPanel::paint(juce::Graphics& g)
+{
+    g.fillAll(theme::edge.withAlpha(0.75f));
+
+    const auto card = cardArea();
+    theme::drawPanel(g, card.toFloat(), 8.0f);
+
+    auto area = card.reduced(22, 18);
+    auto top = area.removeFromTop(64);
+
+    if (logo.isValid())
+    {
+        g.setOpacity(1.0f);
+        g.drawImage(logo, top.removeFromLeft(64).toFloat(), juce::RectanglePlacement::stretchToFit);
+    }
+
+    top.removeFromLeft(14);
+
+    g.setColour(theme::text);
+    theme::drawPixelText(g, "Chipmunk", top.removeFromTop(38), 3);
+
+    g.setColour(theme::textDim);
+    g.setFont(juce::FontOptions(12.5f));
+    g.drawText("Version " + juce::String(CHIPMUNK_VERSION), top, juce::Justification::topLeft, false);
+
+    area.removeFromTop(14);
+    area.removeFromBottom(68);
+
+    g.setColour(theme::text);
+    g.setFont(juce::FontOptions(12.5f));
+    g.drawFittedText(getNotice(), area, juce::Justification::topLeft, 14, 1.0f);
+}
+
+void AboutPanel::resized()
+{
+    auto area = cardArea().reduced(22, 18);
+
+    closeButton.setBounds(area.removeFromBottom(26).removeFromRight(80));
+    area.removeFromBottom(8);
+
+    auto links = area.removeFromBottom(26);
+    const auto linkWidth = links.getWidth() / 3;
+
+    sourceLink.setBounds(links.removeFromLeft(linkWidth));
+    licenseLink.setBounds(links.removeFromLeft(linkWidth));
+    noticesLink.setBounds(links);
+}
+
+void AboutPanel::mouseDown(const juce::MouseEvent& e)
+{
+    if (! cardArea().contains(e.getPosition()) && onClose)
+        onClose();
+}
+
 void PresetDisplay::setSound(const juce::String& name, const juce::String& channel)
 {
     if (name != soundName || channel != channelName)
@@ -380,8 +469,13 @@ ChipmunkEditor::ChipmunkEditor(ChipmunkProcessor& p)
 
     addAndMakeVisible(presetDisplay);
 
-    for (auto* button : { &undoButton, &redoButton, &previousButton, &nextButton })
+    for (auto* button : { &undoButton, &redoButton, &previousButton, &nextButton, &aboutButton })
         addAndMakeVisible(*button);
+
+    aboutButton.setTooltip("About Chipmunk, its license and source code");
+    aboutButton.onClick = [this] { aboutPanel.setVisible(true); aboutPanel.toFront(false); };
+    aboutPanel.onClose = [this] { aboutPanel.setVisible(false); };
+    addChildComponent(aboutPanel);
 
     previousButton.setTooltip("Previous sound");
     nextButton.setTooltip("Next sound");
@@ -768,7 +862,7 @@ void ChipmunkEditor::paint(juce::Graphics& g)
                    ? "Drop audio files to map them to keys. Each hit rings to the end of its sample."
                    : processor.getChannelIndex() == channelEpsmRhythm
                    ? "Keys choose the drum, repeating every six: bass, snare, top cymbal, hi-hat, tom, rim."
-                   : "Drag to draw, Shift-drag to fine-tune. Drag the markers above a graph. Scroll to zoom Arpeggio and Pitch.",
+                   : "Drag to draw, Shift-drag to fine-tune, drag markers to move them. Scroll to zoom pitch.",
                hintArea, juce::Justification::centredLeft, 2, 1.0f);
 }
 
@@ -793,6 +887,8 @@ void ChipmunkEditor::resized()
 {
     auto area = getLocalBounds();
 
+    aboutPanel.setBounds(area);
+
     // The sound's name, stepped through from either side, then undo and the scope at the far end.
     auto header = area.removeFromTop(headerHeight).reduced(margin, 7);
     activity.setBounds(header.removeFromRight(juce::jmin(210, getWidth() / 6)));
@@ -800,6 +896,8 @@ void ChipmunkEditor::resized()
     redoButton.setBounds(header.removeFromRight(46).reduced(0, 4));
     header.removeFromRight(3);
     undoButton.setBounds(header.removeFromRight(46).reduced(0, 4));
+    header.removeFromRight(3);
+    aboutButton.setBounds(header.removeFromRight(24).reduced(0, 4));
     header.removeFromRight(margin + 4);
 
     header.removeFromLeft(logoSize + 10 + theme::pixelTextWidth("Chipmunk", wordmarkDot) + 14);
@@ -996,6 +1094,12 @@ void ChipmunkEditor::layoutPanels()
 
 bool ChipmunkEditor::keyPressed(const juce::KeyPress& key)
 {
+    if (key == juce::KeyPress::escapeKey && aboutPanel.isVisible())
+    {
+        aboutPanel.setVisible(false);
+        return true;
+    }
+
     if (key == juce::KeyPress('z', juce::ModifierKeys::commandModifier, 0))
     {
         undoButton.triggerClick();
