@@ -95,6 +95,7 @@ if(CHIPMUNK_BUILD_PLUGIN)
         PLUGIN_CODE VNes
         FORMATS VST3 AU Standalone
         PRODUCT_NAME "Chipmunk"
+        ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/assets/logo.png"
         IS_SYNTH TRUE
         NEEDS_MIDI_INPUT TRUE
         NEEDS_MIDI_OUTPUT FALSE

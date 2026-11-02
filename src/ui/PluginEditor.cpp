@@ -350,13 +350,13 @@ ChipmunkEditor::ChipmunkEditor(ChipmunkProcessor& p)
     previousButton.onClick = [this] { browser.step(-1); };
     nextButton.onClick = [this] { browser.step(1); };
 
-    // Cropped in to the squirrel, as the whole picture is mostly background at this size.
+    // Cropped to the icon's body, leaving out the margin and shadow around it.
     if (const auto image = juce::ImageCache::getFromMemory(BinaryData::logo_png, BinaryData::logo_pngSize); image.isValid())
     {
         logo = juce::Image(juce::Image::ARGB, logoSize * 2, logoSize * 2, true);
         juce::Graphics g(logo);
         g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-        g.drawImage(image, 0, 0, logo.getWidth(), logo.getHeight(), 96, 120, 832, 832);
+        g.drawImage(image, 0, 0, logo.getWidth(), logo.getHeight(), 100, 90, 824, 824);
     }
 
     undoButton.onClick = [this] { processor.getDocument().undo(); refreshFromProcessor(); };
@@ -668,10 +668,6 @@ void ChipmunkEditor::paint(juce::Graphics& g)
 
     if (logo.isValid())
     {
-        juce::Graphics::ScopedSaveState saved(g);
-        juce::Path rounded;
-        rounded.addRoundedRectangle(logoArea, 7.0f);
-        g.reduceClipRegion(rounded);
         g.setOpacity(1.0f);
         g.drawImage(logo, logoArea, juce::RectanglePlacement::stretchToFit);
     }
