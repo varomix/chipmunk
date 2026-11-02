@@ -24,15 +24,15 @@ effects. Each one is a Live Set you can open and take apart.
 
 **First Stage** · 2A03
 
-<!-- Video: Chipmunk - First Stage.mp4 -->
+<!-- Video: assets/song-first-stage.mp4 -->
 
 **Crystal Cavern** · 2A03, VRC6, MMC5 and S5B
 
-<!-- Video: Chipmunk - Crystal Cavern.mp4 -->
+<!-- Video: assets/song-crystal-cavern.mp4 -->
 
 **Neon Causeway** · all eight chips
 
-<!-- Video: Chipmunk - Neon Causeway.mp4 -->
+<!-- Video: assets/song-neon-causeway.mp4 -->
 
 ## Features
 
