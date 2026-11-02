@@ -6,6 +6,7 @@ namespace
 {
 constexpr int starWidth = 24;
 constexpr int statusHeight = 42;
+constexpr int titleHeight = 24;
 
 const char* channelLabel(ChannelType type)
 {
@@ -46,20 +47,15 @@ PresetBrowser::PresetBrowser(ChipmunkProcessor& p)
     favoritesOnly.onClick = [this] { refreshList(); };
 
     addAndMakeVisible(list);
-    list.setRowHeight(24);
-    list.setColour(juce::ListBox::outlineColourId, theme::outline);
+    list.setRowHeight(22);
     list.setOutlineThickness(1);
 
-    for (auto* button : { &previousButton, &nextButton, &saveButton, &importButton })
+    for (auto* button : { &saveButton, &importButton })
         addAndMakeVisible(*button);
 
-    previousButton.setTooltip("Previous sound");
-    nextButton.setTooltip("Next sound");
     saveButton.setTooltip("Save under this name in your Presets folder");
     importButton.setTooltip("Load a .fms, .fti or .chmk file. You can also drop one anywhere on this window");
 
-    previousButton.onClick = [this] { step(-1); };
-    nextButton.onClick = [this] { step(1); };
     saveButton.onClick = [this] { saveCurrent(); };
     importButton.onClick = [this] { chooseFileToImport(); };
 
@@ -131,8 +127,10 @@ void PresetBrowser::paintListBoxItem(int row, juce::Graphics& g, int width, int 
 
     if (isSelected)
     {
-        g.setColour(theme::accent.withAlpha(0.22f));
+        g.setGradientFill(juce::ColourGradient::horizontal(theme::accent.withAlpha(0.4f), 0.0f, theme::accent.withAlpha(0.08f), (float) width));
         g.fillRect(0, 0, width, height);
+        g.setColour(theme::accent);
+        g.fillRect(0, 0, 2, height);
     }
 
     const auto isFavorite = processor.getLibrary().isFavorite(name);
@@ -318,8 +316,11 @@ void PresetBrowser::chooseFileToImport()
 
 void PresetBrowser::paint(juce::Graphics& g)
 {
-    g.setColour(theme::panel);
-    g.fillRoundedRectangle(getLocalBounds().toFloat(), 4.0f);
+    theme::drawPanel(g, getLocalBounds().toFloat());
+
+    g.setColour(theme::textDim);
+    g.setFont(theme::labelFont(10.5f));
+    g.drawText("SOUNDS", getLocalBounds().removeFromTop(titleHeight).reduced(10, 0).withTrimmedTop(3), juce::Justification::centredLeft, false);
 
     if (status.isNotEmpty())
     {
@@ -331,29 +332,24 @@ void PresetBrowser::paint(juce::Graphics& g)
 
 void PresetBrowser::resized()
 {
-    auto area = getLocalBounds().reduced(8);
+    auto area = getLocalBounds().withTrimmedTop(titleHeight).reduced(8, 0).withTrimmedBottom(8);
 
-    searchField.setBounds(area.removeFromTop(26));
-    area.removeFromTop(6);
-
-    auto row = area.removeFromTop(24);
-    nextButton.setBounds(row.removeFromRight(28));
-    row.removeFromRight(2);
-    previousButton.setBounds(row.removeFromRight(28));
-    favoritesOnly.setBounds(row);
+    auto top = area.removeFromTop(24);
+    favoritesOnly.setBounds(top.removeFromRight(88));
+    top.removeFromRight(6);
+    searchField.setBounds(top);
     area.removeFromTop(6);
 
     area.removeFromBottom(statusHeight);
     area.removeFromBottom(4);
-    auto saveRow = area.removeFromBottom(26);
+    auto saveRow = area.removeFromBottom(24);
     area.removeFromBottom(6);
 
     saveButton.setBounds(saveRow.removeFromRight(52));
     saveRow.removeFromRight(4);
+    importButton.setBounds(saveRow.removeFromRight(60));
+    saveRow.removeFromRight(4);
     nameField.setBounds(saveRow);
-
-    importButton.setBounds(area.removeFromBottom(26));
-    area.removeFromBottom(6);
 
     list.setBounds(area);
 }

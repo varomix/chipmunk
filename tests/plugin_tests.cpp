@@ -1920,8 +1920,8 @@ void testDrumKit()
     check(volumePanel.isVisible(), "choosing a noise key shows its envelopes");
 
     const auto startHeight = list.getHeight();
-    dragDividerTo(divider.getY() + 80);
-    check(list.getHeight() == startHeight + 80 && divider.getY() == list.getBottom() && volumePanel.getY() == divider.getBottom(), "dragging down gives the list more room, right under the mouse");
+    dragDividerTo(divider.getY() + 60);
+    check(list.getHeight() == startHeight + 60 && divider.getY() == list.getBottom() && volumePanel.getY() == divider.getBottom(), "dragging down gives the list more room, right under the mouse");
 
     const auto panelsBottom = editor.getPanel(envelopeDutyCycle).getBottom();
     dragDividerTo(100000);

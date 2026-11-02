@@ -31,8 +31,30 @@ private:
     int grabOffset = 0;
 };
 
-// One window with everything visible: sounds on the left, envelopes in the middle,
-// playing controls above them and a keyboard for trying sounds below.
+// The name of the current sound, on a little screen in the header.
+class PresetDisplay final : public juce::Component
+{
+public:
+    void setSound(const juce::String& name, const juce::String& channel);
+    void paint(juce::Graphics&) override;
+
+private:
+    juce::String soundName, channelName;
+};
+
+// Dark keys, so the keyboard belongs to the rest of the panel.
+class ChipKeyboard final : public juce::MidiKeyboardComponent
+{
+public:
+    using juce::MidiKeyboardComponent::MidiKeyboardComponent;
+
+private:
+    void drawWhiteNote(int note, juce::Graphics&, juce::Rectangle<float> area, bool isDown, bool isOver, juce::Colour lineColour, juce::Colour textColour) override;
+    void drawBlackNote(int note, juce::Graphics&, juce::Rectangle<float> area, bool isDown, bool isOver, juce::Colour noteFillColour) override;
+};
+
+// One window with everything visible: the current sound and scope along the top, sounds on the
+// left, envelopes in the middle with playing controls above them, and a keyboard along the bottom.
 class ChipmunkEditor final : public juce::AudioProcessorEditor,
                             public juce::FileDragAndDropTarget,
                             private juce::Timer
@@ -68,8 +90,12 @@ public:
 
 private:
     void timerCallback() override { refreshFromProcessor(); }
-    juce::Rectangle<int> envelopeArea;
+    juce::Rectangle<int> envelopeArea, hintArea;
+    juce::Rectangle<int> chipModule, knobModule, playModule, chipRowModule;
+    void setupKnob(juce::Slider&, bool valueBelow, int valueWidth);
     void layoutControl(juce::Rectangle<int>& row, juce::Component& control, juce::Label& label, int width);
+    void layoutKnob(juce::Rectangle<int>& row, juce::Slider& knob, juce::Label& label, int width);
+    juce::String chipRowTitle() const;
     void layoutPanels();
     void updateForChannel(int channel);
     void refreshChipControls();
@@ -94,7 +120,7 @@ private:
     juce::ComboBox channelBox, dutyBox, machineBox, voicesBox;
     juce::Slider outputSlider, glideSlider, bendSlider, vibratoSlider;
     juce::ToggleButton velocityButton { "Velocity" }, legatoButton { "Legato" }, gridButton { "Authentic grid" };
-    juce::Label channelLabel, dutyLabel, outputLabel, glideLabel, bendLabel, vibratoLabel;
+    juce::Label channelLabel, dutyLabel, voicesLabel, machineLabel, outputLabel, glideLabel, bendLabel, vibratoLabel;
     // Settings of the current sound that only some chips have.
     juce::ComboBox sawVolumeBox, s5bShapeBox;
     juce::ToggleButton s5bAutoPitchButton { "Follow note" };
@@ -109,13 +135,15 @@ private:
     juce::Label fdsMasterLabel, fdsSpeedLabel, fdsDepthLabel, fdsDelayLabel, n163SizeLabel, n163PositionLabel, n163ChannelsLabel, vrc7PatchLabel, patchLabel;
     std::unique_ptr<SliderAttachment> n163ChannelsAttachment;
 
-    juce::TextButton undoButton { "Undo" }, redoButton { "Redo" };
+    juce::TextButton undoButton { "Undo" }, redoButton { "Redo" }, previousButton { "<" }, nextButton { ">" };
+    PresetDisplay presetDisplay;
+    juce::Image logo;
 
     std::unique_ptr<ComboAttachment> channelAttachment, dutyAttachment, machineAttachment, voicesAttachment;
     std::unique_ptr<SliderAttachment> outputAttachment, glideAttachment, bendAttachment, vibratoAttachment;
     std::unique_ptr<ButtonAttachment> velocityAttachment, legatoAttachment, gridAttachment;
 
-    juce::MidiKeyboardComponent keyboard;
+    ChipKeyboard keyboard;
     ActivityDisplay activity;
 
     int lastVersion = -1;

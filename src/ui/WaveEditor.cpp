@@ -26,7 +26,8 @@ void StepGraph::setRange(int minValue, int maxValue)
 
 void StepGraph::paint(juce::Graphics& g)
 {
-    g.fillAll(theme::background);
+    g.fillAll(theme::panel);
+    theme::drawScreen(g, getLocalBounds().toFloat());
 
     const auto count = source.numSteps();
 
@@ -41,13 +42,18 @@ void StepGraph::paint(juce::Graphics& g)
     g.setColour(theme::outline);
     g.drawHorizontalLine((int) zeroY, area.getX(), area.getRight());
 
-    g.setColour(theme::envelopeColour(envelopeDutyCycle));
+    const auto colour = theme::envelopeColour(envelopeDutyCycle);
 
     for (int step = 0; step < count; ++step)
     {
         const auto y = area.getBottom() - area.getHeight() * (float) (source.value(step) - source.minValue) / range;
         const auto x = area.getX() + (float) step * columnWidth;
-        g.fillRect(x, std::min(y, zeroY), std::max(1.0f, columnWidth - 1.0f), std::max(1.0f, std::abs(y - zeroY)));
+        const auto columnW = std::max(1.0f, columnWidth - 1.0f);
+
+        g.setColour(colour.withAlpha(0.45f));
+        g.fillRect(x, std::min(y, zeroY), columnW, std::max(1.0f, std::abs(y - zeroY)));
+        g.setColour(colour);
+        g.fillRect(x, y <= zeroY ? y : y - 2.0f, columnW, 2.0f);
     }
 }
 
@@ -150,11 +156,13 @@ WavePanel::WavePanel(InstrumentDocument& d)
     addAndMakeVisible(modulationGraph);
 
     addAndMakeVisible(textField);
+    textField.setFont(juce::FontOptions(11.0f));
     textField.setTextToShowWhenEmpty("Wave values", theme::textDim);
     textField.onReturnKey = [this] { commitText(); };
     textField.onFocusLost = [this] { commitText(); };
 
     addAndMakeVisible(repeatField);
+    repeatField.setFont(juce::FontOptions(12.0f));
     repeatField.setInputRestrictions(3, "0123456789");
     repeatField.setTooltip("How many frames this wave plays before moving to the next");
     repeatField.onReturnKey = [this] { commitRepeat(); };
@@ -362,18 +370,16 @@ void WavePanel::refresh()
 
 void WavePanel::paint(juce::Graphics& g)
 {
-    g.setColour(theme::panel);
-    g.fillRoundedRectangle(getLocalBounds().toFloat(), 4.0f);
-    g.setColour(theme::envelopeColour(envelopeDutyCycle));
-    g.fillRect(0, 0, 3, getHeight());
+    theme::drawPanel(g, getLocalBounds().toFloat());
+    theme::drawLed(g, { 14.0f, 14.0f }, 4.0f, theme::envelopeColour(envelopeDutyCycle), true);
 
     g.setColour(theme::text);
-    g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-    g.drawText("Wave", 12, 6, 60, 16, juce::Justification::centredLeft);
+    g.setFont(theme::labelFont(12.0f));
+    g.drawText("WAVE", 24, 6, 50, 16, juce::Justification::centredLeft);
 
     g.setColour(theme::textDim);
     g.setFont(juce::FontOptions(11.0f));
-    g.drawText(juce::String(currentWave + 1) + " of " + juce::String(numWaves()), 56, 6, 80, 16, juce::Justification::centredLeft);
+    g.drawText(juce::String(currentWave + 1) + " of " + juce::String(numWaves()), 76, 6, 80, 16, juce::Justification::centredLeft);
 
     if (fds)
         g.drawText("Modulation table", modulationGraph.getX(), 6, modulationWidth, 16, juce::Justification::centredLeft);

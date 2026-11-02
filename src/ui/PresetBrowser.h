@@ -51,7 +51,7 @@ private:
     juce::TextEditor searchField, nameField;
     juce::ToggleButton favoritesOnly { "Favorites" };
     juce::ListBox list;
-    juce::TextButton previousButton { "<" }, nextButton { ">" }, saveButton { "Save" }, importButton { "Import" };
+    juce::TextButton saveButton { "Save" }, importButton { "Import" };
     juce::String status;
     bool statusIsError = false;
     std::unique_ptr<juce::FileChooser> chooser;

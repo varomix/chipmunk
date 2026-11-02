@@ -100,6 +100,8 @@ if(CHIPMUNK_BUILD_PLUGIN)
         NEEDS_MIDI_OUTPUT FALSE
         COPY_PLUGIN_AFTER_BUILD TRUE)
 
+    juce_add_binary_data(ChipmunkAssets SOURCES assets/logo.png)
+
     set(CHIPMUNK_PLUGIN_SOURCES
         src/plugin/PluginProcessor.cpp
         src/plugin/PresetLibrary.cpp
@@ -108,6 +110,7 @@ if(CHIPMUNK_BUILD_PLUGIN)
         src/ui/EnvelopeEditor.cpp
         src/ui/PluginEditor.cpp
         src/ui/PresetBrowser.cpp
+        src/ui/Theme.cpp
         src/ui/WaveEditor.cpp)
 
     target_sources(Chipmunk PRIVATE ${CHIPMUNK_PLUGIN_SOURCES})
@@ -120,6 +123,7 @@ if(CHIPMUNK_BUILD_PLUGIN)
     target_link_libraries(Chipmunk
         PRIVATE
             ChipmunkEngine
+            ChipmunkAssets
             juce::juce_audio_utils
         PUBLIC
             juce::juce_recommended_config_flags
@@ -136,7 +140,7 @@ if(CHIPMUNK_BUILD_PLUGIN)
         JUCE_DISPLAY_SPLASH_SCREEN=0)
     target_compile_definitions(plugin_tests PRIVATE CHIPMUNK_PROJECTS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/golden/projects" CHIPMUNK_TEMPLATES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/templates")
     target_compile_options(plugin_tests PRIVATE -UNDEBUG)
-    target_link_libraries(plugin_tests PRIVATE ChipmunkEngine juce::juce_audio_utils juce::juce_recommended_config_flags)
+    target_link_libraries(plugin_tests PRIVATE ChipmunkEngine ChipmunkAssets juce::juce_audio_utils juce::juce_recommended_config_flags)
     add_test(NAME plugin_tests COMMAND plugin_tests)
 
     # Plays a Live Set's arrangement through the real processor, for sample songs.
@@ -148,7 +152,7 @@ if(CHIPMUNK_BUILD_PLUGIN)
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_DISPLAY_SPLASH_SCREEN=0)
-    target_link_libraries(render_als PRIVATE ChipmunkEngine juce::juce_audio_utils juce::juce_recommended_config_flags)
+    target_link_libraries(render_als PRIVATE ChipmunkEngine ChipmunkAssets juce::juce_audio_utils juce::juce_recommended_config_flags)
 
     # Fails if a sample song has a silent track or clips.
     foreach(song "varo - First Stage" "varo - Neon Causeway" "varo - Crystal Cavern")

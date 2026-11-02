@@ -110,18 +110,25 @@ public:
 
     void paint(juce::Graphics& g) override
     {
-        g.setColour(theme::panel);
-        g.fillRect(getLocalBounds().reduced(0, 1));
+        g.setColour(theme::panelRaised.withAlpha(0.35f));
+        g.fillRoundedRectangle(getLocalBounds().reduced(0, 1).toFloat(), 3.0f);
 
         auto area = waveformArea();
 
-        g.setColour(isSelected ? theme::accent.withAlpha(0.25f) : theme::panel.darker(0.3f));
-        g.fillRect(area);
+        theme::drawScreen(g, area.toFloat(), 3.0f);
+
+        if (isSelected)
+        {
+            g.setColour(theme::accent.withAlpha(0.28f));
+            g.fillRoundedRectangle(area.toFloat(), 3.0f);
+            g.setColour(theme::accent);
+            g.drawRoundedRectangle(area.toFloat().reduced(0.5f), 3.0f, 1.0f);
+        }
 
         if (isNoise)
             return;
 
-        g.setColour(theme::accent);
+        g.setColour(theme::trace);
         const auto mid = (float) area.getCentreY();
         const auto halfHeight = (float) area.getHeight() * 0.5f - 1.0f;
 
@@ -138,7 +145,7 @@ public:
         const auto labelWidth = juce::jmin(area.getWidth(), juce::roundToInt(juce::GlyphArrangement::getStringWidth(juce::Font(font), label) * 1.15f) + 20);
         const auto labelArea = area.withWidth(labelWidth).withHeight(18);
 
-        g.setColour(theme::panel.darker(0.3f).withAlpha(0.85f));
+        g.setColour(theme::screen.withAlpha(0.8f));
         g.fillRect(labelArea);
 
         g.setColour(theme::text);
@@ -253,7 +260,7 @@ DpcmEditor::DpcmEditor(ChipmunkProcessor& p)
 
     addAndMakeVisible(startKeyLabel);
     startKeyLabel.setText("Next sample goes on", juce::dontSendNotification);
-    startKeyLabel.setFont(juce::FontOptions(12.0f));
+    startKeyLabel.setFont(juce::FontOptions(11.0f));
     startKeyLabel.setColour(juce::Label::textColourId, theme::textDim);
     startKeyLabel.setJustificationType(juce::Justification::centredRight);
 
@@ -522,12 +529,12 @@ void DpcmEditor::setStatus(const juce::String& message, bool isError)
 
 void DpcmEditor::paint(juce::Graphics& g)
 {
-    g.setColour(theme::panel);
-    g.fillRoundedRectangle(getLocalBounds().toFloat(), 4.0f);
+    theme::drawPanel(g, getLocalBounds().toFloat());
+    theme::drawLed(g, { 14.0f, (float) headerHeight * 0.5f }, 4.0f, theme::trace, true);
 
     g.setColour(theme::text);
-    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-    g.drawText(kitMode ? "Drum kit" : "DPCM samples", 12, 0, 140, headerHeight, juce::Justification::centredLeft);
+    g.setFont(theme::labelFont(12.0f));
+    g.drawText(kitMode ? "DRUM KIT" : "DPCM SAMPLES", 24, 0, 140, headerHeight, juce::Justification::centredLeft, false);
 
     if (keys.empty())
     {

@@ -1,17 +1,22 @@
 #include "ui/PluginEditor.h"
 
+#include "BinaryData.h"
+
 namespace
 {
-constexpr int browserWidth = 250;
-constexpr int headerHeight = 34;
-constexpr int controlsHeight = 58;
+constexpr int browserWidth = 230;
+constexpr int headerHeight = 50;
+constexpr int controlsHeight = 76;
 constexpr int keyboardHeight = 62;
 constexpr int margin = 8;
-constexpr int chipControlsHeight = 48;
+constexpr int chipControlsHeight = 54;
+constexpr int logoSize = 36;
+constexpr int wordmarkDot = 2;
+constexpr int gridKeyLow = 24, gridKeyHigh = 119, numWhiteKeys = 56;
 
 constexpr int channelTriangle = 1, channelNoise = 2, channelDpcm = 3, channelVrc6Pulse = 4, channelVrc6Saw = 5, channelMmc5 = 6, channelS5b = 7,
               channelFds = 8, channelN163 = 9, channelVrc7 = 10, channelEpsmSquare = 11, channelEpsmFm = 12, channelEpsmRhythm = 13, channelDrumKit = 14;
-constexpr int wavePanelHeight = 150;
+constexpr int wavePanelMinHeight = 104, wavePanelMaxHeight = 150;
 constexpr int kitDividerHeight = 9;
 constexpr int kitListMinHeight = 130;
 constexpr int kitPanelMinHeight = 80;
@@ -56,6 +61,90 @@ void KitDivider::mouseDoubleClick(const juce::MouseEvent&)
         onReset();
 }
 
+void PresetDisplay::setSound(const juce::String& name, const juce::String& channel)
+{
+    if (name != soundName || channel != channelName)
+    {
+        soundName = name;
+        channelName = channel;
+        repaint();
+    }
+}
+
+void PresetDisplay::paint(juce::Graphics& g)
+{
+    auto area = getLocalBounds();
+
+    theme::drawScreen(g, area.toFloat(), 3.0f);
+
+    area = area.reduced(9, 0);
+
+    g.setColour(theme::tawny);
+    g.setFont(theme::labelFont(9.5f));
+    const auto channelWidth = juce::roundToInt(juce::GlyphArrangement::getStringWidth(juce::Font(theme::labelFont(9.5f)), channelName.toUpperCase())) + 12;
+    g.drawText(channelName.toUpperCase(), area.removeFromRight(channelWidth), juce::Justification::centredRight, false);
+
+    constexpr int dot = 2;
+    const auto shown = soundName.isEmpty() ? juce::String("Untitled") : soundName;
+
+    g.setColour(theme::cream);
+
+    // Names too long or too unusual for the chip's lettering are still shown, just not in it.
+    if (theme::canDrawPixelText(shown) && theme::pixelTextWidth(shown, dot) <= area.getWidth())
+    {
+        theme::drawPixelText(g, shown, area, dot);
+    }
+    else
+    {
+        g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+        g.drawText(shown, area, juce::Justification::centredLeft, true);
+    }
+}
+
+void ChipKeyboard::drawWhiteNote(int note, juce::Graphics& g, juce::Rectangle<float> area, bool isDown, bool isOver, juce::Colour, juce::Colour)
+{
+    const auto top = isDown ? theme::accent : juce::Colour(0xff4d4b5b);
+    const auto bottom = isDown ? theme::accent.darker(0.4f) : juce::Colour(0xff35333f);
+
+    g.setGradientFill(juce::ColourGradient::vertical(top, area.getY(), bottom, area.getBottom()));
+    g.fillRect(area);
+
+    if (isOver && ! isDown)
+    {
+        g.setColour(theme::accent.withAlpha(0.3f));
+        g.fillRect(area);
+    }
+
+    g.setColour(theme::edge);
+    g.fillRect(area.getRight() - 1.0f, area.getY(), 1.0f, area.getHeight());
+
+    g.setColour(juce::Colours::white.withAlpha(0.06f));
+    g.fillRect(area.getX(), area.getY(), 1.0f, area.getHeight());
+
+    const auto text = getWhiteNoteText(note);
+
+    if (text.isNotEmpty())
+    {
+        g.setColour(isDown ? theme::edge : theme::textDim);
+        g.setFont(juce::FontOptions(9.5f));
+        g.drawText(text, area.withTrimmedBottom(3.0f), juce::Justification::centredBottom, false);
+    }
+}
+
+void ChipKeyboard::drawBlackNote(int, juce::Graphics& g, juce::Rectangle<float> area, bool isDown, bool isOver, juce::Colour)
+{
+    const auto key = area.withTrimmedLeft(1.0f).withTrimmedRight(1.0f);
+
+    g.setColour(isDown ? theme::accent.darker(0.2f) : isOver ? juce::Colour(0xff2c2838) : juce::Colour(0xff15141b));
+    g.fillRoundedRectangle(key.withTrimmedTop(-3.0f), 2.0f);
+
+    if (! isDown)
+    {
+        g.setColour(juce::Colours::white.withAlpha(0.12f));
+        g.fillRect(key.getX() + 2.0f, key.getBottom() - 5.0f, key.getWidth() - 4.0f, 2.0f);
+    }
+}
+
 ChipmunkEditor::ChipmunkEditor(ChipmunkProcessor& p)
     : AudioProcessorEditor(p),
       processor(p),
@@ -87,17 +176,20 @@ ChipmunkEditor::ChipmunkEditor(ChipmunkProcessor& p)
 
     const auto setupLabel = [this](juce::Label& label, const juce::String& text) {
         addAndMakeVisible(label);
-        label.setText(text, juce::dontSendNotification);
-        label.setFont(juce::FontOptions(11.0f));
+        label.setText(text.toUpperCase(), juce::dontSendNotification);
+        label.setFont(theme::labelFont(9.0f));
         label.setColour(juce::Label::textColourId, theme::textDim);
-        label.setBorderSize({ 0, 2, 0, 0 });
+        label.setBorderSize({ 0, 1, 0, 0 });
+        label.setMinimumHorizontalScale(0.8f);
     };
 
     setupLabel(channelLabel, "Channel");
     setupLabel(dutyLabel, "Duty");
-    setupLabel(outputLabel, "Output (dB)");
-    setupLabel(glideLabel, "Glide (frames)");
-    setupLabel(bendLabel, "Bend range (st)");
+    setupLabel(voicesLabel, "Voices");
+    setupLabel(machineLabel, "Machine");
+    setupLabel(outputLabel, "Output");
+    setupLabel(glideLabel, "Glide");
+    setupLabel(bendLabel, "Bend range");
     setupLabel(vibratoLabel, "Vibrato speed");
 
     addAndMakeVisible(channelBox);
@@ -128,11 +220,11 @@ ChipmunkEditor::ChipmunkEditor(ChipmunkProcessor& p)
     voicesAttachment = std::make_unique<ComboAttachment>(parameters, "voices", voicesBox);
 
     for (auto* slider : { &outputSlider, &glideSlider, &bendSlider, &vibratoSlider })
-    {
-        addAndMakeVisible(*slider);
-        slider->setSliderStyle(juce::Slider::LinearHorizontal);
-        slider->setTextBoxStyle(juce::Slider::TextBoxRight, false, 38, 20);
-    }
+        setupKnob(*slider, true, 64);
+
+    outputSlider.setTextValueSuffix(" dB");
+    glideSlider.setTextValueSuffix(" fr");
+    bendSlider.setTextValueSuffix(" st");
 
     outputAttachment = std::make_unique<SliderAttachment>(parameters, "gain", outputSlider);
     glideAttachment = std::make_unique<SliderAttachment>(parameters, "glide", glideSlider);
@@ -172,11 +264,7 @@ ChipmunkEditor::ChipmunkEditor(ChipmunkProcessor& p)
     s5bAutoPitchButton.onClick = [this] { editChipSettings([this](Instrument& i) { i.s5bAutoPitch = s5bAutoPitchButton.getToggleState(); }); };
 
     for (auto* slider : { &s5bOctaveSlider, &s5bPeriodSlider })
-    {
-        addAndMakeVisible(*slider);
-        slider->setSliderStyle(juce::Slider::LinearHorizontal);
-        slider->setTextBoxStyle(juce::Slider::TextBoxRight, false, 48, 20);
-    }
+        setupKnob(*slider, false, 40);
 
     s5bOctaveSlider.setRange(-8.0, 8.0, 1.0);
     s5bOctaveSlider.onValueChange = [this] { editChipSettings([this](Instrument& i) { i.s5bAutoPitchOctave = (int) s5bOctaveSlider.getValue(); }); };
@@ -195,7 +283,7 @@ ChipmunkEditor::ChipmunkEditor(ChipmunkProcessor& p)
     setupLabel(fdsMasterLabel, "Wave volume");
     setupLabel(fdsSpeedLabel, "Mod speed");
     setupLabel(fdsDepthLabel, "Mod depth");
-    setupLabel(fdsDelayLabel, "Mod delay (frames)");
+    setupLabel(fdsDelayLabel, "Mod delay");
     setupLabel(n163SizeLabel, "Wave size");
     setupLabel(n163PositionLabel, "RAM position");
     setupLabel(n163ChannelsLabel, "Chip channels");
@@ -222,11 +310,7 @@ ChipmunkEditor::ChipmunkEditor(ChipmunkProcessor& p)
     vrc7PatchBox.onChange = [this] { editChipSettings([this](Instrument& i) { i.vrc7Patch = vrc7PatchBox.getSelectedId() - 1; }); };
 
     for (auto* slider : { &fdsSpeedSlider, &fdsDepthSlider, &fdsDelaySlider, &n163PositionSlider, &n163ChannelsSlider })
-    {
-        addAndMakeVisible(*slider);
-        slider->setSliderStyle(juce::Slider::LinearHorizontal);
-        slider->setTextBoxStyle(juce::Slider::TextBoxRight, false, 44, 20);
-    }
+        setupKnob(*slider, false, 40);
 
     fdsSpeedSlider.setRange(0.0, 4095.0, 1.0);
     fdsSpeedSlider.setSkewFactorFromMidPoint(200.0);
@@ -256,8 +340,25 @@ ChipmunkEditor::ChipmunkEditor(ChipmunkProcessor& p)
     patchField.onFocusLost = [this] { commitPatchField(); };
     patchField.setTextToShowWhenEmpty("Numbers from 0 to 255", theme::textDim);
 
-    addAndMakeVisible(undoButton);
-    addAndMakeVisible(redoButton);
+    addAndMakeVisible(presetDisplay);
+
+    for (auto* button : { &undoButton, &redoButton, &previousButton, &nextButton })
+        addAndMakeVisible(*button);
+
+    previousButton.setTooltip("Previous sound");
+    nextButton.setTooltip("Next sound");
+    previousButton.onClick = [this] { browser.step(-1); };
+    nextButton.onClick = [this] { browser.step(1); };
+
+    // Cropped in to the squirrel, as the whole picture is mostly background at this size.
+    if (const auto image = juce::ImageCache::getFromMemory(BinaryData::logo_png, BinaryData::logo_pngSize); image.isValid())
+    {
+        logo = juce::Image(juce::Image::ARGB, logoSize * 2, logoSize * 2, true);
+        juce::Graphics g(logo);
+        g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
+        g.drawImage(image, 0, 0, logo.getWidth(), logo.getHeight(), 96, 120, 832, 832);
+    }
+
     undoButton.onClick = [this] { processor.getDocument().undo(); refreshFromProcessor(); };
     redoButton.onClick = [this] { processor.getDocument().redo(); refreshFromProcessor(); };
 
@@ -265,20 +366,29 @@ ChipmunkEditor::ChipmunkEditor(ChipmunkProcessor& p)
     addAndMakeVisible(keyboard);
     keyboard.setWantsKeyboardFocus(false);
     keyboard.clearKeyMappings();
-    keyboard.setAvailableRange(24, 119);
-    keyboard.setLowestVisibleKey(36);
-    keyboard.setKeyWidth(18.0f);
-    keyboard.setColour(juce::MidiKeyboardComponent::keyDownOverlayColourId, theme::accent);
-    keyboard.setColour(juce::MidiKeyboardComponent::mouseOverKeyOverlayColourId, theme::accent.withAlpha(0.3f));
+    keyboard.setAvailableRange(gridKeyLow, gridKeyHigh);
+    keyboard.setScrollButtonsVisible(false);
+    keyboard.setColour(juce::MidiKeyboardComponent::shadowColourId, juce::Colours::transparentBlack);
+    keyboard.setColour(juce::MidiKeyboardComponent::keySeparatorLineColourId, theme::edge);
 
     setWantsKeyboardFocus(true);
 
     setResizable(true, true);
     setResizeLimits(1000, 640, 1800, 1300);
-    setSize(1100, 760);
+    setSize(1180, 800);
 
     refreshFromProcessor();
     startTimerHz(30);
+}
+
+void ChipmunkEditor::setupKnob(juce::Slider& slider, bool valueBelow, int valueWidth)
+{
+    addAndMakeVisible(slider);
+    slider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    slider.setTextBoxStyle(valueBelow ? juce::Slider::TextBoxBelow : juce::Slider::TextBoxRight, false, valueWidth, 14);
+
+    if (! valueBelow)
+        slider.setColour(juce::Slider::rotarySliderFillColourId, theme::tawny);
 }
 
 ChipmunkEditor::~ChipmunkEditor()
@@ -310,6 +420,8 @@ void ChipmunkEditor::refreshFromProcessor()
             layoutPanels();
         }
     }
+
+    presetDisplay.setSound(juce::String(document.name()), channelBox.getText());
 
     undoButton.setEnabled(document.canUndo());
     redoButton.setEnabled(document.canRedo());
@@ -526,75 +638,155 @@ void ChipmunkEditor::commitPatchField()
     refreshChipControls();
 }
 
+juce::String ChipmunkEditor::chipRowTitle() const
+{
+    switch (lastChannel)
+    {
+        case channelVrc6Saw: return "VRC6";
+        case channelS5b: return "S5B";
+        case channelFds: return "FDS";
+        case channelN163: return "N163";
+        case channelVrc7: return "VRC7";
+        default: return "EPSM";
+    }
+}
+
 void ChipmunkEditor::paint(juce::Graphics& g)
 {
     g.fillAll(theme::background);
 
+    auto top = getLocalBounds().removeFromTop(headerHeight);
+
+    g.setColour(theme::header);
+    g.fillRect(top);
+    g.setColour(theme::edge);
+    g.fillRect(top.removeFromBottom(1));
+    g.setColour(juce::Colours::white.withAlpha(0.05f));
+    g.fillRect(top.removeFromTop(1));
+
+    const auto logoArea = juce::Rectangle<int>(margin, (headerHeight - logoSize) / 2, logoSize, logoSize).toFloat();
+
+    if (logo.isValid())
+    {
+        juce::Graphics::ScopedSaveState saved(g);
+        juce::Path rounded;
+        rounded.addRoundedRectangle(logoArea, 7.0f);
+        g.reduceClipRegion(rounded);
+        g.setOpacity(1.0f);
+        g.drawImage(logo, logoArea, juce::RectanglePlacement::stretchToFit);
+    }
+
+    const auto wordmarkX = margin + logoSize + 10;
+
     g.setColour(theme::text);
-    g.setFont(juce::FontOptions(18.0f, juce::Font::bold));
-    g.drawText("Chipmunk", margin + 2, 0, 120, headerHeight, juce::Justification::centredLeft);
+    theme::drawPixelText(g, "Chipmunk", { wordmarkX, 0, 200, headerHeight }, wordmarkDot);
+
+    theme::drawModule(g, chipModule, "CHIP");
+    theme::drawModule(g, knobModule, "VOICE");
+    theme::drawModule(g, playModule, "PLAY");
+
+    if (! chipRowModule.isEmpty())
+        theme::drawModule(g, chipRowModule, chipRowTitle());
 
     g.setColour(theme::textDim);
-    g.setFont(juce::FontOptions(12.0f));
-    g.drawText(processor.getChannelIndex() == channelDrumKit
+    g.setFont(juce::FontOptions(11.0f));
+    g.drawFittedText(processor.getChannelIndex() == channelDrumKit
                    ? "Each key plays a sample or a noise sound. Click a noise key to edit its envelopes."
                    : processor.getChannelIndex() == channelDpcm
-                   ? "Drop audio files to map them to keys. MIDI notes play them, and each hit rings to the end of its sample."
+                   ? "Drop audio files to map them to keys. Each hit rings to the end of its sample."
                    : processor.getChannelIndex() == channelEpsmRhythm
                    ? "Keys choose the drum, repeating every six: bass, snare, top cymbal, hi-hat, tom, rim."
-                   : "Drag to draw, Shift-drag to fine-tune. Drag the markers above each graph. Scroll to zoom Arpeggio and Pitch.",
-               110, 0, getWidth() - 110 - 312, headerHeight, juce::Justification::centredLeft);
+                   : "Drag to draw, Shift-drag to fine-tune. Drag the markers above a graph. Scroll to zoom Arpeggio and Pitch.",
+               hintArea, juce::Justification::centredLeft, 2, 1.0f);
 }
 
 void ChipmunkEditor::layoutControl(juce::Rectangle<int>& row, juce::Component& control, juce::Label& label, int width)
 {
     auto column = row.removeFromLeft(width);
-    label.setBounds(column.removeFromTop(16));
+    label.setJustificationType(juce::Justification::centredLeft);
+    label.setBounds(column.removeFromTop(12));
     control.setBounds(column.removeFromTop(24));
     row.removeFromLeft(10);
+}
+
+void ChipmunkEditor::layoutKnob(juce::Rectangle<int>& row, juce::Slider& knob, juce::Label& label, int width)
+{
+    auto column = row.removeFromLeft(width);
+    label.setJustificationType(juce::Justification::centred);
+    label.setBounds(column.removeFromTop(11));
+    knob.setBounds(column);
 }
 
 void ChipmunkEditor::resized()
 {
     auto area = getLocalBounds();
 
-    auto header = area.removeFromTop(headerHeight).reduced(margin, 5);
-    redoButton.setBounds(header.removeFromRight(56));
-    header.removeFromRight(4);
-    undoButton.setBounds(header.removeFromRight(56));
-    header.removeFromRight(8);
-    machineBox.setBounds(header.removeFromRight(78));
-    header.removeFromRight(8);
-    voicesBox.setBounds(header.removeFromRight(88));
+    // The sound's name, stepped through from either side, then undo and the scope at the far end.
+    auto header = area.removeFromTop(headerHeight).reduced(margin, 7);
+    activity.setBounds(header.removeFromRight(juce::jmin(210, getWidth() / 6)));
+    header.removeFromRight(margin + 4);
+    redoButton.setBounds(header.removeFromRight(46).reduced(0, 4));
+    header.removeFromRight(3);
+    undoButton.setBounds(header.removeFromRight(46).reduced(0, 4));
+    header.removeFromRight(margin + 4);
 
-    auto bottom = area.removeFromBottom(keyboardHeight).reduced(margin, 0).withTrimmedBottom(margin);
-    activity.setBounds(bottom.removeFromLeft(browserWidth));
-    bottom.removeFromLeft(margin);
+    header.removeFromLeft(logoSize + 10 + theme::pixelTextWidth("Chipmunk", wordmarkDot) + 14);
+
+    const auto displayWidth = juce::jlimit(210, 340, getWidth() / 4 - 40);
+    previousButton.setBounds(header.removeFromLeft(24).reduced(0, 4));
+    header.removeFromLeft(3);
+    presetDisplay.setBounds(header.removeFromLeft(displayWidth));
+    header.removeFromLeft(3);
+    nextButton.setBounds(header.removeFromLeft(24).reduced(0, 4));
+    header.removeFromLeft(12);
+    hintArea = header;
+
+    area.removeFromTop(margin);
+
+    auto bottom = area.removeFromBottom(keyboardHeight + margin).withTrimmedBottom(margin).reduced(margin, 0);
+    keyboard.setKeyWidth((float) bottom.getWidth() / (float) numWhiteKeys);
     keyboard.setBounds(bottom);
+    area.removeFromBottom(margin);
 
     area = area.reduced(margin, 0);
 
-    browser.setBounds(area.removeFromLeft(browserWidth).withTrimmedBottom(margin));
+    browser.setBounds(area.removeFromLeft(browserWidth));
     area.removeFromLeft(margin);
 
-    auto controls = area.removeFromTop(controlsHeight).reduced(0, 6);
-    auto row = controls;
-    const auto sliderWidth = juce::jmax(90, (row.getWidth() - 110 - 90 - 110 - 5 * 10) / 4);
+    // Three panels of controls, with any room to spare going to the knobs.
+    auto controls = area.removeFromTop(controlsHeight);
+    area.removeFromTop(margin);
 
-    layoutControl(row, channelBox, channelLabel, 110);
-    layoutControl(row, dutyBox, dutyLabel, 90);
-    layoutControl(row, outputSlider, outputLabel, sliderWidth);
-    layoutControl(row, glideSlider, glideLabel, sliderWidth);
-    layoutControl(row, bendSlider, bendLabel, sliderWidth);
-    layoutControl(row, vibratoSlider, vibratoLabel, sliderWidth);
+    constexpr int comboWidth = 104, playWidth = 134;
 
-    auto toggles = row;
+    chipModule = controls.removeFromLeft(theme::moduleTitleWidth + comboWidth * 2 + 20);
+    controls.removeFromLeft(6);
+    playModule = controls.removeFromRight(theme::moduleTitleWidth + playWidth);
+    controls.removeFromRight(6);
+    knobModule = controls;
+
+    auto combos = chipModule.withTrimmedLeft(theme::moduleTitleWidth).reduced(6, 3);
+    auto upper = combos.removeFromTop(combos.getHeight() / 2);
+    auto lower = combos;
+
+    layoutControl(upper, channelBox, channelLabel, comboWidth);
+    layoutControl(upper, dutyBox, dutyLabel, comboWidth);
+    layoutControl(lower, voicesBox, voicesLabel, comboWidth);
+    layoutControl(lower, machineBox, machineLabel, comboWidth);
+
+    auto knobs = knobModule.withTrimmedLeft(theme::moduleTitleWidth).reduced(4, 4);
+    const auto knobWidth = knobs.getWidth() / 4;
+
+    layoutKnob(knobs, outputSlider, outputLabel, knobWidth);
+    layoutKnob(knobs, glideSlider, glideLabel, knobWidth);
+    layoutKnob(knobs, bendSlider, bendLabel, knobWidth);
+    layoutKnob(knobs, vibratoSlider, vibratoLabel, knobWidth);
+
+    auto toggles = playModule.withTrimmedLeft(theme::moduleTitleWidth).reduced(8, 7);
     const auto toggleHeight = toggles.getHeight() / 3;
     velocityButton.setBounds(toggles.removeFromTop(toggleHeight));
     legatoButton.setBounds(toggles.removeFromTop(toggleHeight));
     gridButton.setBounds(toggles);
-
-    area.removeFromBottom(margin);
 
     envelopeArea = area;
     layoutPanels();
@@ -620,6 +812,8 @@ void ChipmunkEditor::layoutPanels()
 {
     auto area = envelopeArea;
 
+    chipRowModule = {};
+
     if (lastChannel == channelDrumKit)
     {
         // Worked out here rather than when dragging, so it still fits after the window or panels change.
@@ -634,60 +828,76 @@ void ChipmunkEditor::layoutPanels()
         dpcmEditor.setBounds(area);
     }
 
-    if (lastChannel == channelFds || lastChannel == channelN163 || lastChannel == channelVrc7 || lastChannel == channelEpsmFm || lastChannel == channelEpsmRhythm)
+    const auto hasChipRow = lastChannel == channelFds || lastChannel == channelN163 || lastChannel == channelVrc7 || lastChannel == channelEpsmFm || lastChannel == channelEpsmRhythm
+                            || lastChannel == channelVrc6Saw || lastChannel == channelS5b || lastChannel == channelEpsmSquare;
+
+    if (hasChipRow)
     {
-        auto row = area.removeFromTop(chipControlsHeight).reduced(0, 3);
+        chipRowModule = area.removeFromTop(chipControlsHeight);
+        area.removeFromTop(5);
+
+        auto row = chipRowModule.withTrimmedLeft(theme::moduleTitleWidth).reduced(8, 4);
+
+        // A toggle lines up with the menus and knobs beside it, under where their names go.
+        const auto layoutToggle = [&row](juce::Button& button, int width) {
+            button.setBounds(row.removeFromLeft(width).withTrimmedTop(12).withHeight(24));
+            row.removeFromLeft(10);
+        };
+
+        const auto layoutRowKnob = [&row](juce::Slider& knob, juce::Label& label, int width) {
+            auto column = row.removeFromLeft(width);
+            label.setJustificationType(juce::Justification::centredLeft);
+            label.setBounds(column.removeFromTop(12));
+            knob.setBounds(column);
+            row.removeFromLeft(10);
+        };
 
         if (lastChannel == channelFds)
         {
             layoutControl(row, fdsMasterBox, fdsMasterLabel, 90);
-            layoutControl(row, fdsSpeedSlider, fdsSpeedLabel, 170);
-            layoutControl(row, fdsDepthSlider, fdsDepthLabel, 170);
-            layoutControl(row, fdsDelaySlider, fdsDelayLabel, 170);
-            fdsAutoButton.setBounds(row.removeFromLeft(90).withTrimmedTop(16).withHeight(24));
+            layoutRowKnob(fdsSpeedSlider, fdsSpeedLabel, 84);
+            layoutRowKnob(fdsDepthSlider, fdsDepthLabel, 84);
+            layoutRowKnob(fdsDelaySlider, fdsDelayLabel, 84);
+            layoutToggle(fdsAutoButton, 90);
         }
         else if (lastChannel == channelN163)
         {
             layoutControl(row, n163SizeBox, n163SizeLabel, 90);
-            layoutControl(row, n163ChannelsSlider, n163ChannelsLabel, 180);
-            layoutControl(row, n163PositionSlider, n163PositionLabel, 220);
+            layoutRowKnob(n163ChannelsSlider, n163ChannelsLabel, 84);
+            layoutRowKnob(n163PositionSlider, n163PositionLabel, 84);
         }
         else if (lastChannel == channelVrc7)
         {
             layoutControl(row, vrc7PatchBox, vrc7PatchLabel, 130);
-            vrc7ReleaseButton.setBounds(row.removeFromLeft(170).withTrimmedTop(16).withHeight(24));
-            vrc7StopButton.setBounds(row.removeFromLeft(100).withTrimmedTop(16).withHeight(24));
-            row.removeFromLeft(10);
+            layoutToggle(vrc7ReleaseButton, 184);
+            layoutToggle(vrc7StopButton, 110);
+        }
+        else if (lastChannel == channelVrc6Saw)
+        {
+            layoutControl(row, sawVolumeBox, sawVolumeLabel, 110);
+        }
+        else if (lastChannel == channelS5b || lastChannel == channelEpsmSquare)
+        {
+            layoutControl(row, s5bShapeBox, s5bShapeLabel, 130);
+            layoutToggle(s5bAutoPitchButton, 110);
+            layoutRowKnob(s5bOctaveSlider, s5bOctaveLabel, 84);
+            layoutRowKnob(s5bPeriodSlider, s5bPeriodLabel, 84);
         }
 
         if (patchField.isVisible())
         {
             auto column = row;
-            patchLabel.setBounds(column.removeFromTop(16));
+            patchLabel.setJustificationType(juce::Justification::centredLeft);
+            patchLabel.setBounds(column.removeFromTop(12));
             patchField.setBounds(column.removeFromTop(24));
         }
-    }
-    else if (lastChannel == channelVrc6Saw || lastChannel == channelS5b || lastChannel == channelEpsmSquare)
-    {
-        auto row = area.removeFromTop(chipControlsHeight).reduced(0, 3);
 
-        if (lastChannel == channelVrc6Saw)
-        {
-            layoutControl(row, sawVolumeBox, sawVolumeLabel, 110);
-        }
-        else
-        {
-            layoutControl(row, s5bShapeBox, s5bShapeLabel, 130);
-            s5bAutoPitchButton.setBounds(row.removeFromLeft(110).withTrimmedTop(16).withHeight(24));
-            row.removeFromLeft(10);
-            layoutControl(row, s5bOctaveSlider, s5bOctaveLabel, 190);
-            layoutControl(row, s5bPeriodSlider, s5bPeriodLabel, 220);
-        }
+        repaint(chipRowModule);
     }
 
     if (wavePanel.isVisible())
     {
-        wavePanel.setBounds(area.removeFromBottom(wavePanelHeight));
+        wavePanel.setBounds(area.removeFromBottom(juce::jlimit(wavePanelMinHeight, wavePanelMaxHeight, area.getHeight() / 3)));
         area.removeFromBottom(5);
     }
 

@@ -4,6 +4,12 @@
 
 #include <cmath>
 
+namespace
+{
+constexpr float screenCorner = 4.0f;
+constexpr int sideWidth = 126;
+} // namespace
+
 EnvelopeGraph::EnvelopeGraph(InstrumentDocument& d, int t)
     : document(d),
       type(t)
@@ -119,20 +125,33 @@ void EnvelopeGraph::paint(juce::Graphics& g)
     const auto width = stepWidth();
     const auto steps = visibleSteps();
 
-    g.setColour(theme::panel.darker(0.3f));
+    {
+        juce::Path glass;
+        glass.addRoundedRectangle(getLocalBounds().toFloat(), screenCorner);
+        g.reduceClipRegion(glass);
+    }
+
+    g.setColour(theme::screen);
     g.fillRect(area);
-    g.setColour(theme::panelRaised);
+    g.setColour(theme::screenRuler);
     g.fillRect(getLocalBounds().toFloat().withHeight((float) rulerHeight));
 
-    // Grid.
-    g.setColour(theme::outline.withAlpha(0.45f));
+    // Grid, with every other bar slightly lighter like a tracker's rows.
+    const auto barSteps = width >= 6.0f ? 4 : 16;
 
-    for (int i = 0; i <= steps; i += width >= 6.0f ? 4 : 16)
+    g.setColour(juce::Colours::white.withAlpha(0.022f));
+
+    for (int i = barSteps; i < steps; i += barSteps * 2)
+        g.fillRect((float) i * width, area.getY(), (float) barSteps * width, area.getHeight());
+
+    g.setColour(theme::outline.withAlpha(0.3f));
+
+    for (int i = 0; i <= steps; i += barSteps)
         g.fillRect((float) i * width, area.getY(), 1.0f, area.getHeight());
 
     if (isBipolar())
     {
-        g.setColour(theme::textDim.withAlpha(0.6f));
+        g.setColour(theme::textDim.withAlpha(0.5f));
         g.fillRect(area.getX(), area.getCentreY() - 0.5f, area.getWidth(), 1.0f);
     }
     else
@@ -148,34 +167,53 @@ void EnvelopeGraph::paint(juce::Graphics& g)
     if (envelope.loop >= 0)
     {
         const auto end = envelope.release >= 0 ? envelope.release : envelope.length;
-        g.setColour(theme::loopMarker.withAlpha(0.08f));
+        g.setColour(theme::loopMarker.withAlpha(0.07f));
         g.fillRect((float) envelope.loop * width, area.getY(), (float) (end - envelope.loop) * width, area.getHeight());
     }
 
     // Steps.
     const auto gap = width >= 5.0f ? 1.0f : 0.0f;
+    const auto capHeight = juce::jmin(2.0f, area.getHeight() * 0.1f);
+    const auto faint = colour.withMultipliedAlpha(0.3f), strong = colour.withMultipliedAlpha(0.8f);
+
+    // Each column fades away from its lit end, which is what makes these read as a display.
+    const auto fill = isBipolar() ? juce::ColourGradient::vertical(faint, area.getCentreY(), strong, area.getY())
+                                  : juce::ColourGradient::vertical(strong, area.getY(), faint, area.getBottom());
+    const auto fillBelow = juce::ColourGradient::vertical(faint, area.getCentreY(), strong, area.getBottom());
 
     for (int i = 0; i < envelope.length; ++i)
     {
         const auto x = (float) i * width;
         const auto value = (int) envelope.values[(size_t) i];
         const auto isPlaying = i == playhead;
+        const auto y = yForValue(value);
 
-        g.setColour(isPlaying ? colour.brighter(0.7f) : colour);
+        auto top = y, bottom = juce::jmax(y + 2.0f, area.getBottom());
+        auto capY = y;
 
         if (isBipolar())
         {
             const auto rowHeight = area.getHeight() / (float) (zoomRange * 2 + 1);
-            const auto y = yForValue(value);
-            const auto top = juce::jmin(y - rowHeight * 0.5f, area.getCentreY() - rowHeight * 0.5f);
-            const auto bottom = juce::jmax(y + rowHeight * 0.5f, area.getCentreY() + rowHeight * 0.5f);
-            g.fillRect(x, top, width - gap, bottom - top);
+            top = juce::jmin(y - rowHeight * 0.5f, area.getCentreY() - rowHeight * 0.5f);
+            bottom = juce::jmax(y + rowHeight * 0.5f, area.getCentreY() + rowHeight * 0.5f);
+            capY = value < 0 ? bottom - capHeight : top;
         }
+
+        if (isPlaying)
+            g.setColour(colour.brighter(0.5f));
         else
-        {
-            const auto y = yForValue(value);
-            g.fillRect(x, y, width - gap, juce::jmax(2.0f, area.getBottom() - y));
-        }
+            g.setGradientFill(value < 0 ? fillBelow : fill);
+
+        g.fillRect(x, top, width - gap, bottom - top);
+
+        g.setColour(isPlaying ? juce::Colours::white.withMultipliedAlpha(active ? 1.0f : 0.3f) : colour);
+        g.fillRect(x, capY, width - gap, capHeight);
+    }
+
+    if (hoverStep >= 0)
+    {
+        g.setColour(juce::Colours::white.withAlpha(0.06f));
+        g.fillRect((float) hoverStep * width, area.getY(), width, area.getHeight());
     }
 
     if (playhead >= 0 && playhead >= envelope.length)
@@ -193,9 +231,9 @@ void EnvelopeGraph::paint(juce::Graphics& g)
         const auto x = (float) step * width;
         g.setColour(flagColour);
         g.fillRect(x, 0.0f, 1.5f, (float) getHeight());
-        g.fillRect(x, 0.0f, 14.0f, (float) rulerHeight);
-        g.setColour(theme::background);
-        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
+        g.fillRect(x, 0.0f, 14.0f, (float) rulerHeight - 1.0f);
+        g.setColour(theme::edge);
+        g.setFont(juce::FontOptions(10.5f, juce::Font::bold));
         g.drawText(label, juce::Rectangle<float>(x, 0.0f, 14.0f, (float) rulerHeight), juce::Justification::centred);
     };
 
@@ -216,7 +254,7 @@ void EnvelopeGraph::paint(juce::Graphics& g)
         drawFlag(envelope.release, theme::releaseMarker, "R");
 
     // Readout.
-    g.setFont(juce::FontOptions(11.0f));
+    g.setFont(juce::FontOptions(10.5f));
     g.setColour(theme::textDim);
     juce::String info;
 
@@ -230,8 +268,8 @@ void EnvelopeGraph::paint(juce::Graphics& g)
 
     g.drawText(info, getLocalBounds().withHeight(rulerHeight).reduced(6, 0), juce::Justification::centredRight);
 
-    g.setColour(theme::outline);
-    g.drawRect(getLocalBounds().toFloat(), 1.0f);
+    g.setColour(theme::edge);
+    g.drawRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), screenCorner, 1.0f);
 }
 
 EnvelopeGraph::Drag EnvelopeGraph::markerAt(juce::Point<float> p) const
@@ -449,8 +487,7 @@ juce::Rectangle<float> EnvelopeValueStrip::labelBounds(int step) const
 
 void EnvelopeValueStrip::paint(juce::Graphics& g)
 {
-    g.setColour(theme::panelRaised);
-    g.fillRect(getLocalBounds());
+    theme::drawScreen(g, getLocalBounds().toFloat(), 3.0f);
 
     const auto& envelope = graph.getEnvelope();
 
@@ -472,7 +509,7 @@ void EnvelopeValueStrip::paint(juce::Graphics& g)
     {
         const auto isMarker = step == envelope.loop || step == envelope.release;
 
-        g.setColour(step == envelope.release ? theme::releaseMarker : isMarker ? theme::loopMarker : theme::text);
+        g.setColour(step == envelope.release ? theme::releaseMarker : isMarker ? theme::loopMarker : theme::text.withAlpha(0.85f));
 
         // Centred on its own column. It may overflow into columns whose numbers are skipped.
         g.drawText(juce::String((int) envelope.values[(size_t) step]),
@@ -483,14 +520,11 @@ void EnvelopeValueStrip::paint(juce::Graphics& g)
     // Column edges carried down from the graph.
     if (columnWidth >= 6.0f)
     {
-        g.setColour(theme::outline.withAlpha(0.6f));
+        g.setColour(theme::outline.withAlpha(0.35f));
 
-        for (int step = 0; step <= envelope.length; ++step)
-            g.fillRect((float) step * columnWidth, 0.0f, 1.0f, (float) getHeight());
+        for (int step = 1; step <= envelope.length; ++step)
+            g.fillRect((float) step * columnWidth, 3.0f, 1.0f, (float) getHeight() - 6.0f);
     }
-
-    g.setColour(theme::outline);
-    g.drawRect(getLocalBounds().toFloat(), 1.0f);
 }
 
 void EnvelopeValueStrip::mouseDown(const juce::MouseEvent&)
@@ -658,17 +692,17 @@ void EnvelopePanel::setUnusedReason(const juce::String& reason)
 
 void EnvelopePanel::paint(juce::Graphics& g)
 {
-    auto area = getLocalBounds().withWidth(118);
+    auto area = getLocalBounds().withWidth(sideWidth);
 
-    g.setColour(theme::panel);
-    g.fillRoundedRectangle(getLocalBounds().toFloat(), 4.0f);
+    theme::drawPanel(g, getLocalBounds().toFloat());
 
-    g.setColour(theme::envelopeColour(type).withMultipliedAlpha(unusedReason.isEmpty() ? 1.0f : 0.4f));
-    g.fillRect(getLocalBounds().withWidth(3).reduced(0, 4));
+    const auto title = area.removeFromTop(28).withTrimmedTop(6).withTrimmedLeft(10);
 
-    g.setColour(theme::text);
-    g.setFont(juce::FontOptions(14.0f, juce::Font::bold));
-    g.drawText(name, area.removeFromTop(26).withTrimmedLeft(12).withTrimmedTop(6), juce::Justification::centredLeft);
+    theme::drawLed(g, { (float) title.getX() + 4.0f, (float) title.getCentreY() }, 4.0f, theme::envelopeColour(type), unusedReason.isEmpty());
+
+    g.setColour(unusedReason.isEmpty() ? theme::text : theme::textDim);
+    g.setFont(theme::labelFont(12.0f));
+    g.drawText(name.toUpperCase(), title.withTrimmedLeft(14), juce::Justification::centredLeft, false);
 
     // A short panel keeps its buttons rather than its note. Errors still show on the text field's outline.
     if (getHeight() < fullNoteHeight)
@@ -678,26 +712,26 @@ void EnvelopePanel::paint(juce::Graphics& g)
     const auto& note = errorText.isNotEmpty() ? errorText : unusedReason.isNotEmpty() ? unusedReason : hint;
 
     g.setColour(errorText.isNotEmpty() ? theme::error : unusedReason.isNotEmpty() ? theme::favorite : theme::textDim);
-    g.setFont(juce::FontOptions(11.0f));
-    g.drawFittedText(note, area.removeFromTop(30).withTrimmedLeft(12).withTrimmedRight(4), juce::Justification::topLeft, 2);
+    g.setFont(juce::FontOptions(10.5f));
+    g.drawFittedText(note, area.removeFromTop(28).withTrimmedLeft(10).withTrimmedRight(6), juce::Justification::topLeft, 2, 1.0f);
 }
 
 void EnvelopePanel::resized()
 {
-    auto area = getLocalBounds().reduced(0, 4);
-    auto side = area.removeFromLeft(118).withTrimmedLeft(10).withTrimmedRight(6);
+    auto area = getLocalBounds().reduced(0, 5);
+    auto side = area.removeFromLeft(sideWidth).withTrimmedLeft(8).withTrimmedRight(6);
     area.removeFromRight(6);
 
     // Same left edge and width as the graph, so every number sits under its column.
-    const auto bottom = area.removeFromBottom(24);
+    const auto bottom = area.removeFromBottom(21);
     textField.setBounds(bottom);
     valueStrip.setBounds(bottom);
     area.removeFromBottom(3);
     graph.setBounds(area);
 
-    side.removeFromTop(getHeight() < fullNoteHeight ? 26 : 56);
+    side.removeFromTop(getHeight() < fullNoteHeight ? 24 : 54);
 
-    auto row = side.removeFromTop(22);
+    auto row = side.removeFromTop(20);
     loopButton.setBounds(row.removeFromLeft(row.getWidth() / 2 - 1));
     row.removeFromLeft(2);
 
@@ -711,6 +745,6 @@ void EnvelopePanel::resized()
     if (releaseButton.isVisible() || relativeButton.isVisible())
     {
         side.removeFromTop(2);
-        clearButton.setBounds(side.removeFromTop(22).withWidth(side.getWidth() / 2 - 1));
+        clearButton.setBounds(side.removeFromTop(20).withWidth(side.getWidth() / 2 - 1));
     }
 }

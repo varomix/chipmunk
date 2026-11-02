@@ -82,7 +82,8 @@ void ActivityDisplay::paint(juce::Graphics& g)
 {
     auto area = getLocalBounds();
 
-    g.fillAll(theme::panel);
+    g.fillAll(theme::header);
+    theme::drawScreen(g, area.toFloat());
 
     const auto hasVolume = processor.getChannelIndex() != channelDpcm;
 
@@ -93,14 +94,20 @@ void ActivityDisplay::paint(juce::Graphics& g)
 
         for (int step = 0; step < volumeSteps; ++step)
         {
-            g.setColour(step < volume ? theme::accent : theme::text.withAlpha(0.12f));
+            const auto lit = step >= 13 ? theme::error : step >= 10 ? theme::favorite : theme::trace;
+            g.setColour(step < volume ? lit : theme::text.withAlpha(0.1f));
             g.fillRect(meter.getX(), meter.getBottom() - stepHeight * (float) (step + 1) + 0.5f, meter.getWidth(), stepHeight - 1.0f);
         }
     }
 
     auto scope = area.reduced(4, 4).toFloat();
 
-    g.setColour(theme::text.withAlpha(0.12f));
+    g.setColour(theme::text.withAlpha(0.05f));
+
+    for (int i = 1; i < 8; ++i)
+        g.drawVerticalLine((int) (scope.getX() + scope.getWidth() * (float) i / 8.0f), scope.getY(), scope.getBottom());
+
+    g.setColour(theme::text.withAlpha(0.14f));
     g.drawHorizontalLine((int) scope.getCentreY(), scope.getX(), scope.getRight());
 
     if (! trace.empty())
@@ -119,14 +126,21 @@ void ActivityDisplay::paint(juce::Graphics& g)
         for (size_t i = 1; i < trace.size(); ++i)
             path.lineTo(scope.getX() + (float) i * xScale, scope.getCentreY() - trace[i] * yScale);
 
-        g.setColour(theme::accent);
+        g.setColour(theme::trace.withAlpha(0.2f));
+        g.strokePath(path, juce::PathStrokeType(3.5f));
+        g.setColour(theme::trace);
         g.strokePath(path, juce::PathStrokeType(1.2f));
     }
 
     if (note >= 0)
     {
+        // A backing keeps the name readable over the trace.
+        const auto tag = area.reduced(4).withSize(30, 13);
+
+        g.setColour(theme::screen.withAlpha(0.8f));
+        g.fillRoundedRectangle(tag.toFloat(), 2.0f);
         g.setColour(theme::text);
-        g.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-        g.drawText(midiNoteName(note), area.reduced(6, 3), juce::Justification::topLeft);
+        g.setFont(theme::labelFont(10.0f));
+        g.drawText(midiNoteName(note), tag, juce::Justification::centred, false);
     }
 }
