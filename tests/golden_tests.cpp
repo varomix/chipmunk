@@ -1,5 +1,5 @@
 // Replays FamiStudio's test songs through ChannelEngine and compares every register write
-// with the trace FamiStudio itself produced. A local script, fms_to_script.py, generates the inputs.
+// with the trace FamiStudio itself produced. tools/fms_to_script.py generates the inputs.
 #include "SongScript.h"
 #include "engine/FmsImport.h"
 

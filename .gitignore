@@ -14,8 +14,8 @@ __pycache__/
 *.pyc
 songs/
 
-# Scripts only used locally, to generate assets, Live Sets and test data
-tools/*.py
+# Scripts only used locally, to generate the logo and Live Sets
+dev_tools/
 
 # Rendered audio
 *.wav
