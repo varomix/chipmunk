@@ -284,6 +284,4 @@ Chipmunk/
   src/ui/                     editor, envelope view, browser
   templates/                  Live Set templates
   tests/golden/               reference traces and test instruments
-  tools/fms_to_script.py      decodes FamiStudio test songs for the golden tests
-  tools/make_live_templates.py  builds the Live Set templates
 ```

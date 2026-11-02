@@ -1,6 +1,6 @@
 #pragma once
 
-// Reads the note-event scripts that tools/fms_to_script.py and fms_txt_to_script.py write, and
+// Reads the note-event scripts that the local fms_to_script.py and fms_txt_to_script.py write, and
 // sets up the channels to play them. Shared by the trace test and the audio comparison.
 #include "engine/ChannelEngine.h"
 

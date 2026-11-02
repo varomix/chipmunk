@@ -843,7 +843,7 @@ void testBrowser()
     processor.getKeyboardState().allNotesOff(1);
 }
 
-// The expected data comes from the note scripts decoded separately by tools/fms_to_script.py.
+// The expected data comes from the note scripts decoded separately by a local script, fms_to_script.py.
 void testProjectImport()
 {
     std::puts("FamiStudio project import");

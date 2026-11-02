@@ -14,6 +14,9 @@ __pycache__/
 *.pyc
 songs/
 
+# Scripts only used locally, to generate assets, Live Sets and test data
+tools/*.py
+
 # Rendered audio
 *.wav
 *.aif

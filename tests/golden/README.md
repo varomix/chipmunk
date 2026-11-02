@@ -5,7 +5,8 @@ Derived from FamiStudio's `FamiStudio/UnitTests` at commit `70625dd` (MIT licens
 - `*.trace.gz` is FamiStudio's own `*_FamiStudioRef.txt`, compressed.
 - `*.script` holds the song's instruments and each channel's per-frame note events.
 
-To regenerate, from a FamiStudio checkout's `FamiStudio/UnitTests` folder:
+The scripts that generate these are development tools, and aren't in this repository. This is how they
+were run, from a FamiStudio checkout's `FamiStudio/UnitTests` folder:
 
 ```bash
 python3 tools/fms_to_script.py TestBase.fms TestBase_FamiStudioRef.txt tests/golden
