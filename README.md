@@ -17,6 +17,23 @@ Your DAW handles composing, arranging and mixing. Chipmunk handles sound design 
 > are on the [Releases](https://github.com/varomix/chipmunk/releases) page. They aren't signed, so
 > your system may warn about them. The README inside each download explains what to do.
 
+## Listen
+
+Three of the songs in [examples](examples), recorded straight from Chipmunk without any of Live's
+effects. Each one is a Live Set you can open and take apart.
+
+**First Stage** · 2A03
+
+<!-- Video: Chipmunk - First Stage.mp4 -->
+
+**Crystal Cavern** · 2A03, VRC6, MMC5 and S5B
+
+<!-- Video: Chipmunk - Crystal Cavern.mp4 -->
+
+**Neon Causeway** · all eight chips
+
+<!-- Video: Chipmunk - Neon Causeway.mp4 -->
+
 ## Features
 
 - **Eight chips, one device:** choose a channel on each track, from Pulse and Triangle to VRC6 Saw,
