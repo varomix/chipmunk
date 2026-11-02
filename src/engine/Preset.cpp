@@ -849,7 +849,7 @@ const std::vector<Preset>& factoryPresets()
             { "EPSM FM Default", "epsmfm", "2", "" },
             { "EPSM FM Bright Lead", "epsmfm", "2", "epsmRegisters=59 192 6 15 31 20 9 104 0 51 32 31 8 6 104 0 1 18 31 20 9 104 0 1 0 31 20 9 104 0 0\n" },
             { "EPSM FM Bass", "epsmfm", "2", "epsmRegisters=56 192 116 20 31 8 4 136 0 66 28 31 10 4 136 0 1 12 31 8 4 136 0 1 0 31 8 4 136 0 0\n" },
-            { "EPSM FM Organ", "epsmfm", "2", "epsmRegisters=7 192 1 0 31 0 0 240 0 2 0 31 0 0 240 0 4 0 31 0 0 240 0 8 0 31 0 0 240 0 0\n" },
+            { "EPSM FM Organ", "epsmfm", "2", "epsmRegisters=7 192 1 0 31 0 0 248 0 2 0 31 0 0 248 0 4 0 31 0 0 248 0 8 0 31 0 0 248 0 0\n" },
             { "EPSM Rhythm Kit", "epsmrhythm", "2", "" },
             { "Explosion", "noise", "2", "volume=15 15 15 14 14 13 13 12 12 11 11 10 10 9 9 8 8 7 7 6 6 5 5 4 4 3 3 2 2 1 1 0\narpeggio=0 0 0 -1 -1 -2 -2 -3 -3 -4\n" },
 

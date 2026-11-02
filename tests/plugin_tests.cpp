@@ -2656,6 +2656,66 @@ void testComputerKeyboard()
     check(keyboard.getExternalNotes().none(), "all notes off clears them, top note included");
 }
 
+void testFmNotesEnd()
+{
+    std::puts("FM notes end after their last note-off");
+
+    constexpr int blockSize = 4800; // A tenth of a second.
+
+    // The level after a note lasting half a second is released, a set time later.
+    const auto levelAfterRelease = [](ChannelType type, const Instrument& instrument, int blocksAfter) {
+        NesEngine engine;
+        engine.prepare(48000.0, false, NesEngine::chipsNeededFor(type));
+        engine.setChannelType(type);
+        engine.setInstrument(instrument);
+
+        std::vector<float> audio(blockSize);
+        const auto block = [&] {
+            engine.render(audio.data(), blockSize);
+            auto mean = 0.0;
+            for (const auto sample : audio)
+                mean += sample;
+            mean /= blockSize;
+            auto sum = 0.0;
+            for (const auto sample : audio)
+                sum += (sample - mean) * (sample - mean);
+            return std::sqrt(sum / blockSize);
+        };
+
+        engine.noteOn(60, 127);
+        for (int i = 0; i < 5; ++i)
+            block();
+        engine.noteOff(60);
+
+        auto level = 0.0;
+        for (int i = 0; i < blocksAfter; ++i)
+            level = block();
+        return level;
+    };
+
+    for (const auto& preset : factoryPresets())
+        if (preset.channel == ChannelType::epsmFm1 || preset.channel == ChannelType::vrc7Fm1)
+            check(levelAfterRelease(preset.channel, preset.instrument, 20) < 0.001, preset.name + " is silent 2 seconds after its note ends");
+
+    const auto withRelease = [](int rate, int algorithm = 7, int carrierRate = -1) {
+        Instrument instrument;
+        instrument.epsmPatchRegisters[0] = (uint8_t) algorithm;
+
+        for (size_t y = 0; y < 4; ++y)
+            instrument.epsmPatchRegisters[y * 7 + 7] = (uint8_t) (0xf0 | (y == 3 && carrierRate >= 0 ? carrierRate : rate));
+
+        return instrument;
+    };
+
+    for (const auto rate : { 0, 1 })
+        check(levelAfterRelease(ChannelType::epsmFm1, withRelease(rate), 2) < 0.001, "a patch with release rate " + juce::String(rate) + ", from an older Set or typed in, stops at once");
+
+    check(levelAfterRelease(ChannelType::epsmFm1, withRelease(2), 5) > 0.05, "a slow release that does fade still rings out");
+    check(levelAfterRelease(ChannelType::epsmFm1, withRelease(15, 7, 0), 2) < 0.001, "one operator that never fades is enough to need stopping");
+    check(levelAfterRelease(ChannelType::epsmFm1, withRelease(0, 0, 8), 20) < 0.001, "with algorithm 0, only the last operator's release matters");
+    check(levelAfterRelease(ChannelType::epsmFm1, withRelease(0, 0, 8), 1) > 0.0005, "so that sound still rings out");
+}
+
 void testLegalNotices()
 {
     std::puts("legal notices");
@@ -2869,6 +2929,7 @@ int main(int argc, char** argv)
     testNewChips();
     testResizing();
     testComputerKeyboard();
+    testFmNotesEnd();
     testLegalNotices();
 
     if (argc > 1)

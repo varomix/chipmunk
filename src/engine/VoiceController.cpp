@@ -164,7 +164,7 @@ void VoiceController::noteOff(int midiNote)
         note.value = noteRelease;
         channel.playNote(note);
 
-        // FM operators fade by themselves, so nothing needs to stop them.
+        // FM operators that ring out fade by themselves, so nothing needs to stop them.
         released = ! channel.ringsOutOnRelease();
     }
     else

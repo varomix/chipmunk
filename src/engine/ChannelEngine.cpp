@@ -34,6 +34,10 @@ bool isInRange(ChannelType type, ChannelType first, ChannelType last)
 bool isN163(ChannelType type) { return isInRange(type, ChannelType::n163Wave1, ChannelType::n163Wave8); }
 bool isVrc7(ChannelType type) { return isInRange(type, ChannelType::vrc7Fm1, ChannelType::vrc7Fm6); }
 bool isEpsmSquare(ChannelType type) { return isInRange(type, ChannelType::epsmSquare1, ChannelType::epsmSquare3); }
+constexpr std::array<int, 4> epsmOperatorOrder { 0, 2, 1, 3 };
+constexpr std::array<int, 8> epsmAlgorithmMask { 0x8, 0x8, 0x8, 0x8, 0xc, 0xe, 0xe, 0xf };
+constexpr int epsmSlowestFadingRelease = 2;
+
 bool isEpsmFm(ChannelType type) { return isInRange(type, ChannelType::epsmFm1, ChannelType::epsmFm6); }
 bool isEpsmRhythm(ChannelType type) { return isInRange(type, ChannelType::epsmRhythm1, ChannelType::epsmRhythm6); }
 
@@ -1259,9 +1263,6 @@ void ChannelEngine::writeEpsm(int reg, int data, bool highBank, int extraCycles)
 
 void ChannelEngine::updateEpsmFm()
 {
-    static constexpr std::array<int, 4> operatorOrder { 0, 2, 1, 3 };
-    static constexpr std::array<int, 8> algorithmMask { 0x8, 0x8, 0x8, 0x8, 0xc, 0xe, 0xe, 0xf };
-
     const auto highBank = channelGroupIndex >= 3;
     const auto index = highBank ? channelGroupIndex - 3 : channelGroupIndex;
     const auto key = highBank ? (0x4 | index) : index;
@@ -1304,10 +1305,10 @@ void ChannelEngine::updateEpsmFm()
 
                 for (size_t y = 0; y < 4; ++y)
                 {
-                    const auto op = index + operatorOrder[y] * 4;
+                    const auto op = index + epsmOperatorOrder[y] * 4;
                     const auto* regs = patch + y * 7;
 
-                    epsmOperatorVolumes[(size_t) operatorOrder[y]] = regs[3];
+                    epsmOperatorVolumes[(size_t) epsmOperatorOrder[y]] = regs[3];
                     writeEpsm(0x30 + op, regs[2], highBank);
                     writeEpsm(0x50 + op, regs[4], highBank);
                     writeEpsm(0x60 + op, regs[5], highBank);
@@ -1320,7 +1321,7 @@ void ChannelEngine::updateEpsmFm()
             }
 
             // Only the operators that reach the output change with volume.
-            const auto mask = algorithmMask[(size_t) (epsmAlgorithm & 0x7)];
+            const auto mask = epsmAlgorithmMask[(size_t) (epsmAlgorithm & 0x7)];
 
             for (int op = 0; op < 4; ++op)
             {
@@ -1362,7 +1363,22 @@ void ChannelEngine::updateEpsmRhythm()
 
 bool ChannelEngine::ringsOutOnRelease() const
 {
-    return isVrc7(type) || isEpsmFm(type);
+    if (isVrc7(type))
+        return true;
+
+    if (! isEpsmFm(type) || note.instrument == nullptr)
+        return false;
+
+    // A release rate this low takes 20 seconds or more to fade, so the note has to be stopped instead.
+    // Only the operators that reach the output decide this.
+    const auto& patch = note.instrument->epsmPatchRegisters;
+    const auto mask = epsmAlgorithmMask[(size_t) (patch[0] & 0x7)];
+
+    for (size_t y = 0; y < 4; ++y)
+        if (((mask >> epsmOperatorOrder[y]) & 1) != 0 && (patch[y * 7 + 7] & 0xf) < epsmSlowestFadingRelease)
+            return false;
+
+    return true;
 }
 
 bool ChannelEngine::isDpcmKeyLooping(int noteValue) const
